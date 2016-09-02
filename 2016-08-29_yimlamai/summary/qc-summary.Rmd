@@ -691,3 +691,16 @@ write_csv(tpm, "tpm.csv")
 ```
 
 [TPM matrix](tpm.csv)
+
+# Il1b plot
+Here are two Il1b plots, one with the huge outlier and one without.
+```{r il1b-plot}
+summarydata$sample = rownames(summarydata)
+il6vals = tpm %>% dplyr::filter(mgi_symbol == "Il1b") %>%
+  tidyr::gather(sample, tpm, -mgi_symbol, -rowname) %>%
+  left_join(summarydata, by="sample")
+ggplot(il6vals, aes(sample, tpm)) + geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplot(subset(il6vals, tpm < 50), aes(sample, tpm)) + geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
