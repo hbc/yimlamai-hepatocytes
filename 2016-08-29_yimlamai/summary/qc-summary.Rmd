@@ -680,3 +680,14 @@ write_csv(subset(treatkospecific_enrich$summary, qvalue < 0.05),
 [Treatment effect on KO, pathways](treatment-effect-on-ko-pathways.csv)
 
 [Specific effect of treatment on KO, pathways](specific-effect-on-ko-pathways.csv)
+
+# TPM matrix
+```{r tpm matrix}
+tpm = txi.salmon$abundance %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column() %>%
+  left_join(symbols, by=c("rowname"="ensembl_gene_id"))
+write_csv(tpm, "tpm.csv")
+```
+
+[TPM matrix](tpm.csv)
