@@ -1,0 +1,682 @@
+---
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    highlight: zenburn
+    theme: flatly
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(tidy=TRUE, highlight=TRUE, dev="png",
+               cache=TRUE, highlight=TRUE, autodep=TRUE, warning=FALSE, error=FALSE,
+               message=FALSE, prompt=TRUE, comment='', fig.cap='')
+```
+
+# Overview
+```{r check-library-functions, echo=FALSE}
+check_install = function(packages) {
+   not_installed = setdiff(packages, rownames(installed.packages()))
+   if(length(not_installed) > 0) {
+      write(paste("The libraries", not_installed, "are not installed, aborting.",
+                   sep=" "), stderr())
+      stop()
+   }
+}
+```
+
+```{r load-libraries, echo=FALSE}
+packages = c("ggplot2", "reshape", "gplots", "edgeR", "CHBUtils", "pheatmap",
+              "DESeq2", "tximport", "DT", "DEGreport", "dplyr")
+check_install(packages)
+installed = lapply(packages, library, character.only = TRUE)
+```
+
+```{r qc-setup}
+project_summary = "/Users/rory/cache/yimlamai-hepatocytes/2016-08-29_yimlamai/project-summary.csv"
+counts_file = "/Users/rory/cache/yimlamai-hepatocytes/2016-08-29_yimlamai/combined.counts"
+tx2genes_file = "/Users/rory/cache/yimlamai-hepatocytes/2016-08-29_yimlamai/tx2gene.csv"
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
+"#0072B2", "#D55E00", "#CC79A7")
+summarydata = read.table(project_summary, header=TRUE, sep=",")
+summarydata = summarydata[,colSums(is.na(summarydata)) < nrow(summarydata)]
+# handle newer bcbio-nextgen runs that use description as the key
+if("description" %in% colnames(summarydata)) {
+  rownames(summarydata) = summarydata$description
+  summarydata$Name = rownames(summarydata)
+  summarydata$description = NULL
+} else {
+  rownames(summarydata) = summarydata$Name
+  # summarydata$Name = NULL
+}
+summarydata = summarydata[order(rownames(summarydata)),]
+if (file.exists(tx2genes_file)) {
+  sample_dirs = file.path(dirname(project_summary), "..", rownames(summarydata))
+  salmon_files = file.path(sample_dirs, "salmon", "quant.sf")
+  sailfish_files = file.path(sample_dirs, "sailfish", "quant.sf")
+  new_sailfish = file.path(sample_dirs, "sailfish", "quant", "quant.sf")
+  new_salmon = file.path(sample_dirs, "salmon", "quant", "quant.sf")
+  if (file.exists(salmon_files[1])) {
+    sf_files = salmon_files
+  } else if (file.exists(sailfish_files[1])) {
+    sf_files = sailfish_files
+  }
+  else if (file.exists(new_sailfish[1])) {
+    sf_files = new_sailfish
+  }
+  else if (file.exists(new_salmon[1])) {
+    sf_files = new_salmon
+  }
+  names(sf_files) = rownames(summarydata)
+  tx2gene = read.table(tx2genes_file, sep=",", row.names=NULL, header=FALSE)
+  txi.salmon = tximport(sf_files, type="salmon", tx2gene=tx2gene,
+                        reader=readr::read_tsv, countsFromAbundance="lengthScaledTPM")
+  counts = round(data.frame(txi.salmon$counts, check.names=FALSE))
+} else {
+  counts = read.table(counts_file, header=TRUE, row.names="id", check.names=FALSE)
+}
+counts = counts[, order(colnames(counts)), drop=FALSE]
+colnames(counts) = gsub(".counts", "", colnames(counts))
+
+# this is a list of all non user-supplied metadata columns that could appear
+known_columns = c("Name", "X.GC", "Exonic.Rate", "Sequences.flagged.as.poor.quality",
+    "rRNA_rate", "Fragment.Length.Mean", "Intronic.Rate", "Intergenic.Rate",
+    "Mapping.Rate", "Quality.format", "Duplication.Rate.of.Mapped", "Mapped",
+    "rRNA", "Sequence.length", "Transcripts.Detected", "Mean.Per.Base.Cov.",
+    "Genes.Detected", "Unique.Starts.Per.Read", "unique_starts_per_read",
+    "complexity", "X5.3.bias", "Duplicates.pct", "Duplicates", "Mapped.reads",
+    "Average.insert.size", "Mapped.reads.pct", "Total.reads",
+    "avg_coverage_per_region", "Mapped.Reads")
+summarydata[,"Fragment.Length.Mean"] = summarydata$Average.insert.size
+summarydata$gt = paste(summarydata$genotype, summarydata$treatment, sep="_")
+metadata = summarydata[, !colnames(summarydata) %in% known_columns, drop=FALSE]
+metadata = metadata[, colSums(is.na(metadata)) < nrow(metadata), drop=FALSE]
+```
+
+```{r sanitize-datatable}
+sanitize_datatable = function(df, ...) {
+ # remove dashes which cause wrapping
+ DT::datatable(df, ..., rownames=gsub("-", "_", rownames(df)),
+                   colnames=gsub("-", "_", colnames(df)))
+}
+```
+
+```{r set-random-seed}
+# set seed for reproducibility
+set.seed(1454944673)
+```
+
+## Sample metadata
+```{r summary-table, echo=FALSE, cache=FALSE}
+sanitize_datatable(summarydata, style='bootstrap')
+```
+
+```{r heatmap-function}
+get_heatmap_fn = function(summarydata) {
+    # return the pheatmap function with or without metadata
+    if(ncol(metadata) == 0) {
+       return(pheatmap)
+    }
+    else {
+    # rownames(metadata) = summarydata$Name
+    heatmap_fn = function(data, ...) {
+        pheatmap(data, annotation=metadata, clustering_method = "ward.D2",
+        clustering_distance_cols = "correlation", ...)
+    }
+    return(heatmap_fn)
+}}
+heatmap_fn = get_heatmap_fn(summarydata)
+```
+
+# Quality control metrics
+
+```{r qualimap-run}
+qualimap_run = "Mapped" %in% colnames(summarydata)
+do_quality = "Mapped.reads" %in% colnames(summarydata)
+```
+
+## Mapped reads
+Mapped reads looks great, there is some variation but that is to be expected.
+
+```{r mapped-plot, eval=qualimap_run}
+ggplot(summarydata, aes(x=Name, y=Mapped)) +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    geom_bar(stat="identity") +
+    ylab("mapped reads") + xlab("")
+```
+
+```{r mapped-plot-noqualimap, eval=!qualimap_run & do_quality}
+ggplot(summarydata, aes(x=Name, y=Mapped.reads)) +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    geom_bar(stat="identity") +
+    ylab("mapped reads") + xlab("")
+```
+
+## Genomic mapping rate
+The genomic mapping rate looks excellent for all of the samples.
+```{r mapping-rate-plot, eval=qualimap_run}
+ggplot(summarydata, aes(x=Name, y=Mapping.Rate)) +
+    geom_bar(stat="identity") +
+    ylab("mapping rate") + xlab("") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90))
+```
+
+```{r mapping-rate-plot-noqualimap, eval=!qualimap_run & do_quality}
+ggplot(summarydata, aes(x=Name, y=Mapped.reads.pct)) +
+    geom_bar(stat="identity") +
+    ylab("mapping rate") + xlab("") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90))
+```
+
+## Number of genes detected
+We see around the same number of genes detected in each sample, which is
+another good sign.
+
+```{r genes-detected-plot}
+dd = data.frame(Name=colnames(counts), Genes.Detected = colSums(counts > 0))
+ggplot(dd, aes(x=Name, y=Genes.Detected)) +
+    geom_bar(stat="identity") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    ylab("genes detected") + xlab("")
+```
+
+## Exonic mapping rate
+The exonic mapping rate is a measurement of how much RNA we actually
+sequenced; if the genomic mapping rate is super high and the exonic mapping
+rate is low, we have DNA contamination. There are a couple samples that look
+like they might have some DNA contamination, but nothing absolutely horrible.
+```{r exonic-mapping-plot, eval="Exonic.Rate" %in% colnames(summarydata)}
+ggplot(summarydata, aes(x=Name, y=Exonic.Rate)) +
+    geom_bar(stat="identity") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    ylab("exonic mapping rate") + xlab("")
+```
+
+## rRNA mapping rate
+These rates are low for all samples, which is good.
+
+```{r check-rRNA-eval}
+eval_rRNA = "rRNA_rate" %in% colnames(summarydata) & !sum(is.na(summarydata$rRNA_rate)) == nrow(summarydata)
+```
+```{r rRNA-rate-plot, eval=eval_rRNA & do_quality}
+ggplot(summarydata, aes(x=Name, y=rRNA_rate)) +
+    geom_bar(stat="identity") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    ylab("rRNA rate") + xlab("")
+```
+
+## 5'->3' bias
+This is round 1, which is good-- if it deviates much from 1 then it is indicative
+of degradation of the RNA.
+
+```{r 53bias, eval="X5.3.bias" %in% colnames(summarydata) & do_quality}
+ggplot(summarydata, aes(x=Name, y=X5.3.bias)) +
+    geom_bar(stat="identity") +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) +
+    ylab("5'->3' bias") + xlab("")
+```
+
+## Boxplot of log10 counts per gene
+The distributions of counts looks pretty similar across all of the samples.
+
+```{r boxplot-raw}
+melted = melt(counts)
+colnames(melted) = c("sample", "count")
+melted$sample = factor(melted$sample)
+melted = melted[order(melted$sample),]
+melted$count = log(melted$count)
+ggplot(melted, aes(x=sample, y=count)) + geom_boxplot() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("")
+```
+
+## Boxplot of log10 TMM-normalized counts per gene
+Normalizing makes them much more similar, which is good.
+Trimmed mean of M-values (TMM) normalization is described
+[here](http://genomebiology.biomedcentral.com/articles/10.1186/gb-2010-11-3-r25)
+
+Robinson, M. D., & Oshlack, A. (2010). A scaling normalization method for differential expression analysis of RNA-seq data. Genome Biology, 11(3). doi:10.1186/gb-2010-11-3-r25
+
+```{r boxplot-normalized}
+y = DGEList(counts=counts)
+y = calcNormFactors(y)
+normalized_counts = cpm(y, normalized.lib.sizes=TRUE)
+melted = melt(normalized_counts)
+colnames(melted) = c("gene", "sample", "count")
+melted$sample = factor(melted$sample)
+melted = melted[order(melted$sample),]
+melted$count = log(melted$count)
+ggplot(melted, aes(x=sample, y=count)) + geom_boxplot() +
+    theme_bw(base_size=10) +
+    theme(panel.grid.major = element_line(size = .5, color = "grey"),
+          axis.text.x = element_text(angle=90)) + xlab("")
+```
+
+## Correlation heatmap of TMM-normalized counts {.tabset}
+Samples of the same genotype and treatment cluster together by Spearman
+correlation which is a good sign.
+
+### Correlation (Pearson)
+```{r pearson-heatmap-normalized, eval=ncol(counts) > 1}
+heatmap_fn(cor(normalized_counts, method="pearson"))
+```
+
+### Correlation (Spearman)
+```{r spearman-heatmap-normalized, eval=ncol(counts) > 1}
+heatmap_fn(cor(normalized_counts, method="spearman"))
+```
+
+## PCA plots {.tabset}
+Samples separate very cleanly along the 1st and 2nd principal components by
+genotype and treatment. This is good news for differential expression analyses.
+
+```{r pca, eval=ncol(counts) > 1}
+dds = DESeqDataSetFromMatrix(countData=counts, colData=summarydata, design=~Name)
+vst = varianceStabilizingTransformation(dds)
+pca_loadings = function(object, ntop=500) {
+  rv <- matrixStats::rowVars(assay(object))
+  select <- order(rv, decreasing = TRUE)[seq_len(min(ntop,
+      length(rv)))]
+  pca <- prcomp(t(assay(object)[select, ]))
+  percentVar <- pca$sdev^2/sum(pca$sdev^2)
+  names(percentVar) = colnames(pca$x)
+  pca$percentVar = percentVar
+  return(pca)}
+pc = pca_loadings(vst)
+comps = data.frame(pc$x)
+comps$Name = rownames(comps)
+library(dplyr)
+comps = comps %>% left_join(summarydata, by=c("Name"="Name"))
+colorby = "Name"
+```
+
+```{r pca-plotter}
+pca_plot = function(comps, nc1, nc2, colorby) {
+   c1str = paste0("PC", nc1)
+   c2str = paste0("PC", nc2)
+  if(!(c1str %in% colnames(comps) && c2str %in% colnames(comps))) {
+    warning("Higher order components not found, skipping plotting.")
+    return(NA)
+  }
+  ggplot(comps, aes_string(c1str, c2str, color=colorby)) +
+    geom_point() + theme_bw() +
+    xlab(paste0(c1str, ": ", round(pc$percentVar[nc1] * 100), "% variance")) +
+    ylab(paste0(c2str, ": ", round(pc$percentVar[nc2] * 100), "% variance"))
+  }
+```
+
+### PC1 vs. PC2
+```{r PC1-PC2}
+pca_plot(comps, 1, 2, "gt")
+```
+
+### PC3 vs. PC4
+```{r PC3-PC4}
+pca_plot(comps, 3, 4, "gt")
+```
+
+### PC5 vs. PC6
+```{r PC5-PC6}
+pca_plot(comps, 5, 6, "gt")
+```
+
+### Variance explained by component
+```{r component-loadings}
+ggplot(data.frame(component=reorder(names(pc$percentVar), -pc$percentVar),
+                  percent_var=pc$percentVar),
+       aes(component, percent_var)) + geom_bar(stat='identity') +
+  ylab("percent of total variation") + xlab("") + theme_bw()
+```
+
+```{r shiny-app, echo=F}
+# this is to plot data with https://github.com/lpantano/shiny/tree/master/expression
+degObj(assay(vst), metadata, "deg.rda")
+```
+```{r deseq2-tximport-helper-functions}
+# snagged from development version of DESeq
+DESeqDataSetFromTximport <- function(txi, colData, design, ...)
+{
+  counts <- round(txi$counts)
+  mode(counts) <- "integer"
+  dds <- DESeqDataSetFromMatrix(countData=counts, colData=colData, design=design, ...)
+  stopifnot(txi$countsFromAbundance %in% c("no","scaledTPM","lengthScaledTPM"))
+  if (txi$countsFromAbundance %in% c("scaledTPM","lengthScaledTPM")) {
+    message("using length scaled TPM counts from tximport")
+  } else {
+    message("using counts and average transcript lengths from tximport")
+    lengths <- txi$length
+    dimnames(lengths) <- dimnames(dds)
+    assays(dds)[["avgTxLength"]] <- lengths
+  }
+  return(dds)
+}
+
+subset_tximport = function(txi, rows, columns) {
+    txi$counts = txi$counts[rows, columns]
+    txi$abundance = txi$abundance[rows, columns]
+    txi$length = txi$length[rows, columns]
+    return(txi)
+}
+```
+
+```{r deseq2-helper-functions}
+deseq2resids = function(dds) {
+  # calculate residuals for a deseq2 fit
+  fitted = t(t(assays(dds)[["mu"]]) / sizeFactors(dds))
+  return(counts(dds, normalized=TRUE) - fitted)
+}
+```
+
+```{r de-setup}
+library(DEGreport)
+library(vsn)
+design = ~genotype+treatment+genotype:treatment
+summarydata$treatment = relevel(summarydata$treatment, "untreated")
+summarydata$genotype = relevel(summarydata$genotype, "wt")
+```
+
+# Differential expression
+
+Here we fit a model that looks like `~genotype + treatment + genotype:treatment`.
+The coefficient of genotype will be the effect due to it being
+a knockout, when there has been no treatment. The coefficient of treatment will
+be the effect of effect of treatment on the control cells. The
+coefficient of genotype:treatment will be the effect of treatment on the
+knockout cells.
+
+```{r deseq2-expression-analysis, results='asis'}
+counts <- counts[rowSums(counts>0)>1,]
+if(exists("txi.salmon")) {
+   txi.salmon = subset_tximport(txi.salmon, rownames(counts), colnames(counts))
+   dds = DESeqDataSetFromTximport(txi.salmon, colData=summarydata, design=design)
+} else {
+  dds = DESeqDataSetFromMatrix(countData=counts,
+      colData=summarydata, design = design  )
+}
+geoMeans = apply(counts, 1, function(row) if (all(row == 0)) 0 else
+                                                                 exp(mean(log(row[row != 0]))))
+dds = estimateSizeFactors(dds, geoMeans=geoMeans)
+dds = DESeq(dds)
+```
+
+## Dispersion estimates
+These dispersion estimates look normal-- the red line is the fitted value
+for the mean-variance relationship, the black dots are the gene-wise
+dispersion values and the blue dots are the gene-wise dispersions shrunk
+back to the fitted line.
+
+```{r dispersion-estimate}
+plotDispEsts(dds)
+```
+
+```{r utility-functions}
+library(biomaRt)
+biomart_dataset = "mmusculus_gene_ensembl"
+mart = biomaRt::useMart(biomart = "ensembl", dataset=biomart_dataset)
+symbols = biomaRt::getBM(attributes=c("ensembl_gene_id", "mgi_symbol"), mart=mart)
+entrez = biomaRt::getBM(attributes = c("ensembl_gene_id", "entrezgene"), mart=mart)
+entrez$entrezgene = as.character(entrez$entrezgene)
+
+plotMA_full = function(res) {
+  ymax = max(res$log2FoldChange, na.rm=TRUE)
+  ymin = min(res$log2FoldChange, na.rm=TRUE)
+  plotMA(res, ylim=c(ymin, ymax))
+}
+volcano = function(res) {
+  stats = as.data.frame(res[,c(2,6)])
+  p = volcano_density_plot(stats, lfc.cutoff=1.5)
+  print(p)
+}
+markup_deseq = function(res, fname) {
+  out_df = as.data.frame(res)
+  out_df$id = rownames(out_df)
+  out_df = out_df[, c("id", colnames(out_df)[colnames(out_df) != "id"])]
+  out_df = out_df %>% left_join(symbols, by=c("id"="ensembl_gene_id")) %>%
+    arrange(padj)
+  return(out_df)
+}
+write_deseq = function(res, fname) {
+  out_df = as.data.frame(res)
+  out_df$id = rownames(out_df)
+  out_df = out_df[, c("id", colnames(out_df)[colnames(out_df) != "id"])]
+  out_df = out_df %>% left_join(symbols, by=c("id"="ensembl_gene_id")) %>%
+    arrange(padj)
+  write.table(out_df, file=fname, quote=FALSE, sep=",",
+              row.names=FALSE, col.names=TRUE)
+}
+of_interest = c("Tgfb1", "Tgfb2", "Pdgfc", "Il6")
+```
+
+### KO effect
+
+```{r ko-effect}
+ko = results(dds, name="genotype_yaptaz_vs_wt")
+komarked = markup_deseq(ko)
+plotMA_full(ko)
+volcano(ko)
+write_deseq(ko, "knockout-effect.csv")
+```
+
+There are `r nrow(subset(ko, padj < 0.05))` genes affected by the knockout.
+
+## Treatment effect on wildtype
+```{r treatment-effect}
+treatwt = results(dds, name="treatment_ccl4_vs_untreated")
+treatwtmarked = markup_deseq(treatwt)
+plotMA_full(treatwt)
+volcano(treatwt)
+write_deseq(treatwt, "treatment-effect-on-wildtype.csv")
+```
+
+There are `r nrow(subset(treatwt, padj < 0.05))` genes affected by the CCL4 treatment
+in the wildtype.
+
+### Treatment effect on KO
+```{r treatment-on-ko}
+treatko = results(dds, list(c("treatment_ccl4_vs_untreated", "genotypeyaptaz.treatmentccl4")))
+treatkomarked = markup_deseq(treatko)
+plotMA_full(treatko)
+volcano(treatko)
+write_deseq(treatko, "treatment-effect-on-knockout.csv")
+```
+
+There are `r nrow(subset(treatko, padj < 0.05))` genes affected by the CCL4 treatment
+in the knockout.
+
+### Treatment effect specific to KO
+```{r treatment-on-ko-specific}
+treatkospecific = results(dds, name="genotypeyaptaz.treatmentccl4")
+plotMA_full(treatkospecific)
+volcano(treatkospecific)
+treatkospecificmarked = markup_deseq(treatkospecific)
+write_deseq(treatkospecific, "specific-effect-on-knockout.csv")
+```
+
+There are `r nrow(subset(treatkospecific, padj < 0.05))` genes specifically affected
+differently by the CCL4 treatment in the knockout compared to the wildtype.
+
+# Differential expression output tables
+These tables have the format:
+
+id,baseMean,log2FoldChange,lfcSE,stat,pvalue,padj,mgi_symbol
+
+* id: Ensembl gene ID
+* baseMean: average counts for all samples
+* log2FoldChange: log2 fold change of effect, positive is higher in the non-control condition
+* lfcSE: standard error of log2 fold change
+* stat: used for the Wald test
+* pvalue: pvalue
+* padj: adjusted (BH) pvalue   use this not the unadjusted pvalue
+* mgi_symbol: symbol for the gene from MGI
+
+[Knockout effect](knockout-effect.csv)
+
+[Treatment effect on WT](treatment-effect-on-wildtype.csv)
+
+[Treatment effect on KO](treatment-effect-on-knockout.csv)
+
+[Treatment effect, specific to KO](specific-effect-on-knockout.csv)
+
+# Pathway analysis
+
+```{r pathway-load-libraries}
+orgdb = "org.Mm.eg.db"
+biomart_dataset = "mmusculus_gene_ensembl"
+keggname = "mmu"
+library(dplyr)
+library(clusterProfiler)
+library(orgdb, character.only=TRUE)
+library(biomaRt)
+```
+
+```{r biomaRt-entrez}
+mart = biomaRt::useMart(biomart = "ensembl", dataset=biomart_dataset)
+entrez = biomaRt::getBM(attributes = c("ensembl_gene_id", "entrezgene"), mart=mart)
+entrez$entrezgene = as.character(entrez$entrezgene)
+```
+
+```{r go-function}
+summarize_cp = function(res, comparison) {
+  summaries = data.frame()
+  for(ont in names(res)) {
+     ontsum = summary(res[[ont]])
+     ontsum$ont = ont
+     summaries = rbind(summaries, ontsum)
+  }
+  summaries$comparison = comparison
+  return(summaries)}
+
+enrich_cp = function(res, comparison) {
+  res = res %>% data.frame() %>%
+    tibble::rownames_to_column() %>%
+    left_join(entrez, by=c("rowname"="ensembl_gene_id")) %>%
+    filter(!is.na(entrezgene))
+  universe = res$entrezgene
+  genes = subset(res, padj < 0.05)$entrezgene
+  mf = enrichGO(genes, universe=universe,
+                OrgDb=orgdb,
+                ont="MF",
+                pAdjustMethod="BH",
+                qvalueCutoff=1,
+                pvalueCutoff=1)
+  cc = enrichGO(genes, universe=universe,
+                OrgDb=orgdb,
+                ont="CC",
+                pAdjustMethod="BH",
+                qvalueCutoff=1,
+                pvalueCutoff=1)
+  bp = enrichGO(genes, universe=universe,
+                OrgDb=orgdb,
+                ont="BP",
+                pAdjustMethod="BH",
+                qvalueCutoff=1,
+                pvalueCutoff=1)
+  kg = enrichKEGG(gene=genes, universe=universe,
+                  organism='mmu',
+                  pvalueCutoff=1,
+                  qvalueCutoff=1,
+                  pAdjustMethod="BH")
+  all = list(mf=mf, cc=cc, bp=bp, kg=kg)
+  all[["summary"]] = summarize_cp(all, comparison)
+  return(all)}
+```
+
+```{r gsea-function}
+gsea_cp = function(res, comparison) {
+  res = res %>%
+    left_join(entrez, by=c("rowname"="ensembl_gene_id")) %>%
+    filter(!is.na(entrezgene)) %>%
+    filter(!is.na(log2FoldChange)) %>%
+    filter(!is.na(lfcSE))
+  lfc = data.frame(res)[, "log2FoldChange"]
+  lfcse = data.frame(res)[, "lfcSE"]
+  genes = lfc/lfcse
+  names(genes) = res$entrezgene
+  genes = genes[order(genes, decreasing=TRUE)]
+  cc = gseGO(genes, ont="CC", OrgDb=orgdb,
+             nPerm=500, pvalueCutoff=1, pAdjustMethod="BH",
+             verbose=TRUE)
+  mf = gseGO(genes, ont="MF", OrgDb=orgdb,
+             nPerm=500, pvalueCutoff=1, pAdjustMethod="BH",
+             verbose=TRUE)
+  bp = gseGO(genes, ont="bp", OrgDb=orgdb,
+             nPerm=500, pvalueCutoff=1, pAdjustMethod="BH",
+             verbose=TRUE)
+  genes = data.frame(res)[, "log2FoldChange"]
+  names(genes) = res$entrezgene
+  genes = genes[order(genes, decreasing=TRUE)]
+  genes = genes[!is.na(genes)]
+  kg = gseKEGG(geneList=genes, organism=keggname, nPerm=500,
+               pvalueCutoff=1, verbose=TRUE)
+  if(orgdb == "org.Hs.eg.db") {
+    do = summary(gseDO(geneList=genes, nPerm=500, pvalueCutoff=1,
+                       pAdjustMethod="BH", verbose=TRUE))
+    do$ont = "DO"
+    all = list(mf=mf, cc=cc, bp=bp, kg=kg, do=do)
+  }
+  else {
+    all = list(mf=mf, cc=cc, bp=bp, kg=kg)
+  }
+  all[["summary"]] = summarize_cp(all, comparison)
+  return(all)}
+```
+
+## KO effect
+```{r pathway-ko-effect}
+library(readr)
+ko_enrich = enrich_cp(ko, "knockout-effect")
+write_csv(subset(ko_enrich$summary, qvalue < 0.05),
+          "knockout-effect-pathways.csv")
+```
+
+## Treatment effect on wildtype
+```{r wt-treatment-effect-pathway}
+treatwt_enrich = enrich_cp(treatwt, "treatment-effect-on-wt")
+write_csv(subset(treatwt_enrich$summary, qvalue < 0.05),
+          "treatment-effect-on-wt-pathways.csv")
+
+```
+
+## Treatment effect on KO
+```{r ko-treatment-effect-pathway}
+treatko_enrich = enrich_cp(treatko, "treatment-effect-on-ko")
+write_csv(subset(treatko_enrich$summary, qvalue < 0.05),
+          "treatment-effect-on-ko-pathways.csv")
+
+```
+
+## Treatment effect specific to KO
+
+```{r treatment-effect-ko-specific-pathway}
+treatkospecific_enrich = enrich_cp(treatkospecific, "specific-treatment-effect-on-ko")
+write_csv(subset(treatkospecific_enrich$summary, qvalue < 0.05),
+          "specific-effect-on-ko-pathways.csv")
+
+```
+
+# Pathway analysis output tables
+[Knockout effect, pathways](knockout-effect-pathways.csv)
+
+[Treatment effect on wildtype, pathways](treatment-effect-on-wt-pathways.csv)
+
+[Treatment effect on KO, pathways](treatment-effect-on-ko-pathways.csv)
+
+[Specific effect of treatment on KO, pathways](specific-effect-on-ko-pathways.csv)
