@@ -551,6 +551,8 @@ library(biomaRt)
 mart = biomaRt::useMart(biomart = "ensembl", dataset=biomart_dataset)
 entrez = biomaRt::getBM(attributes = c("ensembl_gene_id", "entrezgene"), mart=mart)
 entrez$entrezgene = as.character(entrez$entrezgene)
+entrezsymbol = biomaRt::getBM(attributes=c("mgi_symbol", "entrezgene"), mart=mart)
+entrezsymbol$entrezgene = as.character(entrezsymbol$entrezgene)
 ```
 
 ```{r go-function}
@@ -637,29 +639,42 @@ gsea_cp = function(res, comparison) {
   }
   all[["summary"]] = summarize_cp(all, comparison)
   return(all)}
+
+convert_core_ids = function(res) {
+  res = res %>%
+    mutate(geneID=strsplit(as.character(geneID), "/")) %>%
+    tidyr::unnest(geneID) %>%
+    left_join(entrezsymbol, by=c("geneID"="entrezgene")) %>%
+    group_by(ID, Description, GeneRatio, BgRatio, pvalue, p.adjust, qvalue,
+            Count, ont, comparison) %>%
+    summarise(geneID=paste(geneID, collapse="/"),
+              symbol=paste(mgi_symbol, collapse="/"))
+  return(res)
+  }
+
 ```
 
 ## KO effect
 ```{r pathway-ko-effect}
 library(readr)
 ko_enrich = enrich_cp(ko, "knockout-effect")
-write_csv(subset(ko_enrich$summary, qvalue < 0.05),
-          "knockout-effect-pathways.csv")
+ko_out = convert_core_ids(subset(ko_enrich$summary, qvalue < 0.05))
+write_csv(ko_out, "knockout-effect-pathways.csv")
 ```
 
 ## Treatment effect on wildtype
 ```{r wt-treatment-effect-pathway}
 treatwt_enrich = enrich_cp(treatwt, "treatment-effect-on-wt")
-write_csv(subset(treatwt_enrich$summary, qvalue < 0.05),
-          "treatment-effect-on-wt-pathways.csv")
+treatwt_out = convert_core_ids(subset(treatwt_enrich$summary, qvalue < 0.05))
+write_csv(treatwt_out, "treatment-effect-on-wt-pathways.csv")
 
 ```
 
 ## Treatment effect on KO
 ```{r ko-treatment-effect-pathway}
 treatko_enrich = enrich_cp(treatko, "treatment-effect-on-ko")
-write_csv(subset(treatko_enrich$summary, qvalue < 0.05),
-          "treatment-effect-on-ko-pathways.csv")
+treatko_out = convert_core_ids(subset(treatko_enrich$summary, qvalue < 0.05))
+write_csv(treatko_out, "treatment-effect-on-ko-pathways.csv")
 
 ```
 
@@ -667,9 +682,8 @@ write_csv(subset(treatko_enrich$summary, qvalue < 0.05),
 
 ```{r treatment-effect-ko-specific-pathway}
 treatkospecific_enrich = enrich_cp(treatkospecific, "specific-treatment-effect-on-ko")
-write_csv(subset(treatkospecific_enrich$summary, qvalue < 0.05),
-          "specific-effect-on-ko-pathways.csv")
-
+treatkospecific_out = convert_core_ids(subset(treatkospecific_enrich$summary, qvalue < 0.05))
+write_csv(treatkospecific_out, "specific-effect-on-ko-pathways.csv")
 ```
 
 # Pathway analysis output tables
@@ -693,14 +707,146 @@ write_csv(tpm, "tpm.csv")
 [TPM matrix](tpm.csv)
 
 # Il1b plot
-Here are two Il1b plots, one with the huge outlier and one without.
 ```{r il1b-plot}
 summarydata$sample = rownames(summarydata)
-il6vals = tpm %>% dplyr::filter(mgi_symbol == "Il1b") %>%
+il1bvals = tpm %>% dplyr::filter(mgi_symbol == "Il1b") %>%
   tidyr::gather(sample, tpm, -mgi_symbol, -rowname) %>%
   left_join(summarydata, by="sample")
-ggplot(il6vals, aes(sample, tpm)) + geom_point() +
+ggplot(il1bvals, aes(sample, tpm)) + geom_point() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-ggplot(subset(il6vals, tpm < 50), aes(sample, tpm)) + geom_point() +
+ggplot(subset(il1bvals, tpm < 50), aes(sample, tpm)) + geom_point() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+# Yap targets
+Dean posed this question:
+
+```
+Could you check if our Hippo gene signature is significantly changed in the
+context of injury. Is it normalized after injury when Yap/Taz are knocked out? I
+have included the a file called "Yap Targets.grp" which documents genes
+typically changed in cell lines when Hippo Signaling is inactivated. Usually we
+use the GSEA suite to examine the significance.
+```
+
+We could do GSEA, but it will make it tough to answer the question
+'is it normalized'. Here we will try to answer that question by measuring
+the distance between all samples via PCA, using those genes to query.
+The file we were sent is in human symbol form, though. So we have to convert
+that first:
+
+```{r yap-genes}
+library(biomaRt)
+human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+symbolconv = getLDS(attributes = c("mgi_symbol", "ensembl_gene_id"),
+                    mart = mouse,
+                    attributesL = c("hgnc_symbol"), martL = human)
+colnames(symbolconv) = c("mouse", "id", "human")
+target_fn= "/Volumes/Clotho/Users/rory/cache/yimlamai-hepatocytes/metadata/yap-targets.grp"
+extras = data.frame(symbol=c("NOCT", "ASAP1", "COLGAT1", "IQCJ-SCHIP1", "AGFG2"))
+targets = read_csv(target_fn, skip=1, col_names=c("symbol"))
+targets = rbind(targets, extras)
+targets = targets %>%
+  left_join(symbolconv, by=c("symbol"="human"))
+genes = unique(targets$id)[!is.na(unique(targets$id))]
+genes = genes[genes %in% rownames(counts)]
+```
+
+Below at the PCA plots using those genes. This doesn't look too good for the
+hypothesis that treating the Yap/Taz knockout samples normalizes these
+genes after injury. If this made the Yap/Taz cells more like the WT cells,
+we'd expect them to overlap. Instead we see the CCL4 treated YapTaz knockout
+cells are further away.
+
+```{r pca-yap}
+dds = DESeqDataSetFromMatrix(countData=counts, colData=summarydata, design=~Name)
+dds = estimateSizeFactors(dds)
+vst = varianceStabilizingTransformation(dds)
+pca_yap = function(object, genes) {
+  pca <- prcomp(t(assay(object)[genes, ]))
+  percentVar <- pca$sdev^2/sum(pca$sdev^2)
+  names(percentVar) = colnames(pca$x)
+  pca$percentVar = percentVar
+  return(pca)}
+pc = pca_yap(vst, genes)
+comps = data.frame(pc$x)
+comps$Name = rownames(comps)
+library(dplyr)
+comps = comps %>% left_join(summarydata, by=c("Name"="Name"))
+colorby = "Name"
+pca_plot(comps, 1, 2, "gt")
+```
+
+Heirarchical clustering also doesn't bear out this hypothesis, using
+the normalized counts:
+
+```{r yaptaz-heatmap}
+ncounts = log(counts(dds, normalized=TRUE) + 1)
+toheatmap = ncounts[genes,] %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column() %>%
+  left_join(targets, by=c("rowname"="id")) %>%
+  na.omit()
+toplot = data.frame(toheatmap, check.names=FALSE)
+rownames(toplot) = toplot$mouse
+toplot = toplot[, !colnames(toplot) %in% c("symbol", "mouse", "id", "rowname")]
+heatmap_fn(toplot, fontsize=7)
+```
+
+# Yap targets (piccolo)
+
+This is the same as above, but using the Piccolo lab genes:
+
+```{r picollo-genes}
+library(biomaRt)
+human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+symbolconv = getLDS(attributes = c("mgi_symbol", "ensembl_gene_id"),
+                    mart = mouse,
+                    attributesL = c("hgnc_symbol"), martL = human)
+colnames(symbolconv) = c("mouse", "id", "human")
+target_fn= "/Volumes/Clotho/Users/rory/cache/yimlamai-hepatocytes/metadata/piccolo.txt"
+targets = read_csv(target_fn, col_names=c("symbol"))
+targets = targets %>%
+  left_join(symbolconv, by=c("symbol"="human"))
+genes = unique(targets$id)[!is.na(unique(targets$id))]
+genes = genes[genes %in% rownames(counts)]
+```
+
+We sees a similar pattern as the above, CCL4 treatment make the YapTaz cells
+more different than the untreated cells, not less.
+
+```{r picollo-heatmap}
+dds = DESeqDataSetFromMatrix(countData=counts, colData=summarydata, design=~Name)
+dds = estimateSizeFactors(dds)
+vst = varianceStabilizingTransformation(dds)
+pca_yap = function(object, genes) {
+  pca <- prcomp(t(assay(object)[genes, ]))
+  percentVar <- pca$sdev^2/sum(pca$sdev^2)
+  names(percentVar) = colnames(pca$x)
+  pca$percentVar = percentVar
+  return(pca)}
+pc = pca_yap(vst, genes)
+comps = data.frame(pc$x)
+comps$Name = rownames(comps)
+library(dplyr)
+comps = comps %>% left_join(summarydata, by=c("Name"="Name"))
+colorby = "Name"
+pca_plot(comps, 1, 2, "gt")
+```
+
+Heirarchical clustering also doesn't bear out this hypothesis.
+
+```{r piccolo-heatmap}
+ncounts = log(counts(dds, normalized=TRUE) + 1)
+toheatmap = ncounts[genes,] %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column() %>%
+  left_join(targets, by=c("rowname"="id")) %>%
+  na.omit()
+toplot = data.frame(toheatmap, check.names=FALSE)
+rownames(toplot) = toplot$mouse
+toplot = toplot[, !colnames(toplot) %in% c("symbol", "mouse", "id", "rowname")]
+heatmap_fn(toplot, fontsize=7)
 ```
