@@ -651,7 +651,23 @@ convert_core_ids = function(res) {
               symbol=paste(mgi_symbol, collapse="/"))
   return(res)
   }
-
+direction_breakdown = function(res, deseq2res) {
+  ocols = colnames(res)
+  deseq2res = deseq2res %>%
+    data.frame() %>%
+    tibble::rownames_to_column() %>%
+    dplyr::select(log2FoldChange, rowname)
+  ids = res %>% mutate(symbol=strsplit(as.character(symbol), "/")) %>%
+    tidyr::unnest(symbol) %>%
+    left_join(symbols, by=c("symbol"="mgi_symbol")) %>%
+    left_join(deseq2res, by=c("ensembl_gene_id"="rowname")) %>%
+    mutate(direction=ifelse(log2FoldChange > 0, "up", "down"))
+  ids = ids[, c(ocols, "direction")]
+  ids = ids %>% group_by(ID, Description, GeneRatio, BgRatio, pvalue,
+                         p.adjust, qvalue, Count, ont, pvalue, p.adjust,
+                         qvalue, comparison, direction) %>%
+    summarise(symbols=paste(symbol, collapse="/"))
+  return(ids)}
 ```
 
 ## KO effect
@@ -659,6 +675,7 @@ convert_core_ids = function(res) {
 library(readr)
 ko_enrich = enrich_cp(ko, "knockout-effect")
 ko_out = convert_core_ids(subset(ko_enrich$summary, qvalue < 0.05))
+ko_out = direction_breakdown(ko_out, ko)
 write_csv(ko_out, "knockout-effect-pathways.csv")
 ```
 
@@ -666,23 +683,29 @@ write_csv(ko_out, "knockout-effect-pathways.csv")
 ```{r wt-treatment-effect-pathway}
 treatwt_enrich = enrich_cp(treatwt, "treatment-effect-on-wt")
 treatwt_out = convert_core_ids(subset(treatwt_enrich$summary, qvalue < 0.05))
+treatwt_out = direction_breakdown(treatwt_out, treatwt)
+treatwt_int = read_csv("followup/treatment-wt.txt", col_names="ID")
+treatwt_out$interesting = treatwt_out$ID %in% treatwt_int$ID
 write_csv(treatwt_out, "treatment-effect-on-wt-pathways.csv")
-
 ```
 
 ## Treatment effect on KO
 ```{r ko-treatment-effect-pathway}
 treatko_enrich = enrich_cp(treatko, "treatment-effect-on-ko")
 treatko_out = convert_core_ids(subset(treatko_enrich$summary, qvalue < 0.05))
+treatko_out = direction_breakdown(treatko_out, treatko)
+treatko_int = read_csv("followup/treatment-ko.txt", col_names="ID")
+treatko_out$interesting = treatko_out$ID %in% treatko_int$ID
 write_csv(treatko_out, "treatment-effect-on-ko-pathways.csv")
-
 ```
 
 ## Treatment effect specific to KO
-
 ```{r treatment-effect-ko-specific-pathway}
 treatkospecific_enrich = enrich_cp(treatkospecific, "specific-treatment-effect-on-ko")
 treatkospecific_out = convert_core_ids(subset(treatkospecific_enrich$summary, qvalue < 0.05))
+treatkospecific_out = direction_breakdown(treatkospecific_out, treatkospecific)
+treatkospecific_int = read_csv("followup/treatment-specific-ko.txt", col_names="ID")
+treatkospecific_out$interesting = treatkospecific_out$ID %in% treatkospecific_int$ID
 write_csv(treatkospecific_out, "specific-effect-on-ko-pathways.csv")
 ```
 
@@ -850,3 +873,5 @@ rownames(toplot) = toplot$mouse
 toplot = toplot[, !colnames(toplot) %in% c("symbol", "mouse", "id", "rowname")]
 heatmap_fn(toplot, fontsize=7)
 ```
+
+## Pathway plots
