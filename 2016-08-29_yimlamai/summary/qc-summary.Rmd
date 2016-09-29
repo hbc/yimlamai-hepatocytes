@@ -874,4 +874,106 @@ toplot = toplot[, !colnames(toplot) %in% c("symbol", "mouse", "id", "rowname")]
 heatmap_fn(toplot, fontsize=7)
 ```
 
-## Pathway plots
+## Marker genes
+Here we try to find genes that are markers for each of the four groups. By
+markers we mean genes that are up or down only in that specific group compared
+to all of the other groups. Since we only have four groups, we can do this by
+looking, for each group, at all pairwise comparisons with the other groups, and
+then picking out the genes which are significantly up or down in a given
+group compared to each of the other groups.
+
+
+```{r fit-gt-model}
+design=~gt
+counts <- counts[rowSums(counts>0)>1,]
+if(exists("txi.salmon")) {
+   txi.salmon = subset_tximport(txi.salmon, rownames(counts), colnames(counts))
+   dds = DESeqDataSetFromTximport(txi.salmon, colData=summarydata, design=design)
+} else {
+  dds = DESeqDataSetFromMatrix(countData=counts,
+      colData=summarydata, design = design  )
+}
+geoMeans = apply(counts, 1, function(row) if (all(row == 0)) 0 else
+                                                                 exp(mean(log(row[row != 0]))))
+dds = estimateSizeFactors(dds, geoMeans=geoMeans)
+dds = DESeq(dds)
+```
+
+### WT, untreated
+```{r wt-untreated-markers}
+comp1 = results(dds, contrast=c("gt", "wt_untreated", "wt_ccl4"))
+comp2 = results(dds, contrast=c("gt", "wt_untreated", "yaptaz_ccl4"))
+comp3 = results(dds, contrast=c("gt", "wt_untreated", "yaptaz_untreated"))
+genes = rownames(subset(comp1, padj < 0.05))
+genes = intersect(genes, rownames(subset(comp2, padj < 0.05)))
+genes = intersect(genes, rownames(subset(comp3, padj < 0.05)))
+allup = (comp1[genes, "log2FoldChange"] > 0) & (comp2[genes, "log2FoldChange"] > 0) & (comp3[genes, "log2FoldChange"] > 0)
+alldown = (comp1[genes, "log2FoldChange"] < 0) & (comp2[genes, "log2FoldChange"] < 0) & (comp3[genes, "log2FoldChange"] < 0)
+samedir = allup | alldown
+wtmarkers = genes[samedir]
+heatmap_fn(log(ncounts[wtmarkers,] + 1))
+combined = results(dds, contrast=list(c("gtwt_untreated"),
+        c("gtwt_ccl4", "gtyaptaz_ccl4", "gtyaptaz_untreated")), listValues=c(1,-1/3))
+combined = combined[wtmarkers,]
+write_deseq(combined, "wt-untreated-markers.csv")
+```
+
+### WT, CCL4 treated
+```{r ccl4-untreated-markers}
+comp1 = results(dds, contrast=c("gt", "wt_ccl4", "wt_untreated"))
+comp2 = results(dds, contrast=c("gt", "wt_ccl4", "yaptaz_ccl4"))
+comp3 = results(dds, contrast=c("gt", "wt_ccl4", "yaptaz_untreated"))
+genes = rownames(subset(comp1, padj < 0.05))
+genes = intersect(genes, rownames(subset(comp2, padj < 0.05)))
+genes = intersect(genes, rownames(subset(comp3, padj < 0.05)))
+allup = (comp1[genes, "log2FoldChange"] > 0) & (comp2[genes, "log2FoldChange"] > 0) & (comp3[genes, "log2FoldChange"] > 0)
+alldown = (comp1[genes, "log2FoldChange"] < 0) & (comp2[genes, "log2FoldChange"] < 0) & (comp3[genes, "log2FoldChange"] < 0)
+samedir = allup | alldown
+wtccl4markers = genes[samedir]
+heatmap_fn(log(ncounts[wtccl4markers,] + 1))
+combined = results(dds, contrast=list(c("gtwt_ccl4"),
+        c("gtwt_untreated", "gtyaptaz_ccl4", "gtyaptaz_untreated")),
+        listValues=c(1,-1/3))
+combined = combined[wtccl4markers,]
+write_deseq(combined, "wt-ccl4-markers.csv")
+```
+
+### KO, untreated
+```{r ko-untreated-markers}
+comp1 = results(dds, contrast=c("gt", "yaptaz_untreated", "wt_ccl4"))
+comp2 = results(dds, contrast=c("gt", "yaptaz_untreated", "yaptaz_ccl4"))
+comp3 = results(dds, contrast=c("gt", "yaptaz_untreated", "wt_untreated"))
+genes = rownames(subset(comp1, padj < 0.05))
+genes = intersect(genes, rownames(subset(comp2, padj < 0.05)))
+genes = intersect(genes, rownames(subset(comp3, padj < 0.05)))
+allup = (comp1[genes, "log2FoldChange"] > 0) & (comp2[genes, "log2FoldChange"] > 0) & (comp3[genes, "log2FoldChange"] > 0)
+alldown = (comp1[genes, "log2FoldChange"] < 0) & (comp2[genes, "log2FoldChange"] < 0) & (comp3[genes, "log2FoldChange"] < 0)
+samedir = allup | alldown
+yaptazmarkers = genes[samedir]
+heatmap_fn(log(ncounts[yaptazmarkers,] + 1))
+combined = results(dds, contrast=list(c("gtyaptaz_untreated"),
+        c("gtwt_untreated", "gtyaptaz_ccl4", "gtwt_ccl4")),
+        listValues=c(1,-1/3))
+combined = combined[yaptazmarkers,]
+write_deseq(combined, "yaptaz-untreated-markers.csv")
+```
+
+### KO, CCL4 treated
+```{r ko-treated-markers}
+comp1 = results(dds, contrast=c("gt", "yaptaz_ccl4", "wt_ccl4"))
+comp2 = results(dds, contrast=c("gt", "yaptaz_ccl4", "yaptaz_untreated"))
+comp3 = results(dds, contrast=c("gt", "yaptaz_ccl4", "wt_untreated"))
+genes = rownames(subset(comp1, padj < 0.05 & abs(log2FoldChange) > 3))
+genes = intersect(genes, rownames(subset(comp2, padj < 0.05 & abs(log2FoldChange) > 3)))
+genes = intersect(genes, rownames(subset(comp3, padj < 0.05 & abs(log2FoldChange) > 3)))
+allup = (comp1[genes, "log2FoldChange"] > 0) & (comp2[genes, "log2FoldChange"] > 0) & (comp3[genes, "log2FoldChange"] > 0)
+alldown = (comp1[genes, "log2FoldChange"] < 0) & (comp2[genes, "log2FoldChange"] < 0) & (comp3[genes, "log2FoldChange"] < 0)
+samedir = allup | alldown
+yaptaztreatedmarkers = genes[samedir]
+heatmap_fn(log(ncounts[yaptaztreatedmarkers,] + 1), fontsize=8)
+combined = results(dds, contrast=list(c("gtyaptaz_ccl4"),
+        c("gtwt_untreated", "gtyaptaz_untreated", "gtwt_ccl4")),
+        listValues=c(1,-1/3))
+combined = combined[yaptaztreatedmarkers,]
+write_deseq(combined, "yaptaz-ccl4-markers.csv")
+```
