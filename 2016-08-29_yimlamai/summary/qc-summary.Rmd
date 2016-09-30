@@ -874,14 +874,21 @@ toplot = toplot[, !colnames(toplot) %in% c("symbol", "mouse", "id", "rowname")]
 heatmap_fn(toplot, fontsize=7)
 ```
 
-## Marker genes
+# Marker genes
 Here we try to find genes that are markers for each of the four groups. By
 markers we mean genes that are up or down only in that specific group compared
 to all of the other groups. Since we only have four groups, we can do this by
 looking, for each group, at all pairwise comparisons with the other groups, and
 then picking out the genes which are significantly up or down in a given
-group compared to each of the other groups.
+group compared to each of the other groups. The heatmaps are of the logged,
+normalized counts for these genes in each sample.
 
+To simplify the output, we took those genes and did a differential expression
+test of the gene in the given sample group against the average of all the
+other samples. We didn't use this to select the genes, it is just to have an
+idea of which direction and an overall estimate of the magnitude of the change
+in gene expression in the particular group. These are available at the bottom
+in the section `Marker gene tables`
 
 ```{r fit-gt-model}
 design=~gt
@@ -899,7 +906,7 @@ dds = estimateSizeFactors(dds, geoMeans=geoMeans)
 dds = DESeq(dds)
 ```
 
-### WT, untreated
+## WT, untreated
 ```{r wt-untreated-markers}
 comp1 = results(dds, contrast=c("gt", "wt_untreated", "wt_ccl4"))
 comp2 = results(dds, contrast=c("gt", "wt_untreated", "yaptaz_ccl4"))
@@ -918,7 +925,7 @@ combined = combined[wtmarkers,]
 write_deseq(combined, "wt-untreated-markers.csv")
 ```
 
-### WT, CCL4 treated
+## WT, CCL4 treated
 ```{r ccl4-untreated-markers}
 comp1 = results(dds, contrast=c("gt", "wt_ccl4", "wt_untreated"))
 comp2 = results(dds, contrast=c("gt", "wt_ccl4", "yaptaz_ccl4"))
@@ -938,7 +945,7 @@ combined = combined[wtccl4markers,]
 write_deseq(combined, "wt-ccl4-markers.csv")
 ```
 
-### KO, untreated
+## KO, untreated
 ```{r ko-untreated-markers}
 comp1 = results(dds, contrast=c("gt", "yaptaz_untreated", "wt_ccl4"))
 comp2 = results(dds, contrast=c("gt", "yaptaz_untreated", "yaptaz_ccl4"))
@@ -958,7 +965,7 @@ combined = combined[yaptazmarkers,]
 write_deseq(combined, "yaptaz-untreated-markers.csv")
 ```
 
-### KO, CCL4 treated
+## KO, CCL4 treated
 ```{r ko-treated-markers}
 comp1 = results(dds, contrast=c("gt", "yaptaz_ccl4", "wt_ccl4"))
 comp2 = results(dds, contrast=c("gt", "yaptaz_ccl4", "yaptaz_untreated"))
@@ -977,3 +984,12 @@ combined = results(dds, contrast=list(c("gtyaptaz_ccl4"),
 combined = combined[yaptaztreatedmarkers,]
 write_deseq(combined, "yaptaz-ccl4-markers.csv")
 ```
+
+## Marker gene tables
+[WT, untreated markers](wt-untreated-markers.csv)
+
+[WT, CCL4 markers](wt-CCL4-markers.csv)
+
+[YapTaz, untreated markers]("yaptaz-untreated-markers.csv")
+
+[YapTaz, CCL4 markers]("yaptaz-ccl4-markers.csv")
