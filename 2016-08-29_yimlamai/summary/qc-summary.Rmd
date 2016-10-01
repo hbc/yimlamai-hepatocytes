@@ -993,3 +993,160 @@ write_deseq(combined, "yaptaz-ccl4-markers.csv")
 [YapTaz, untreated markers]("yaptaz-untreated-markers.csv")
 
 [YapTaz, CCL4 markers]("yaptaz-ccl4-markers.csv")
+
+
+# Pairwise-comparisons
+Here we look at the data in a slightly different way. Instead of looking at
+interactions of genotype and treatment, we do pairwise comparisons between
+the groups. This is a lot easier to think about, but makes the question
+question "which genes are specifically affected by treatment in the KO" a lot
+harder to answer.
+
+## Differential expression
+### KO untreated vs WT untreated
+This compares the KO untreated samples to the WT untreated samples. Here,
+positive log2 fold changes
+
+```{r pairwise-ko-effect}
+ko = results(dds, contrast=c("gt", "yaptaz_untreated", "wt_untreated"), addMLE=TRUE)
+komarked = markup_deseq(ko)
+plotMA_full(ko)
+volcano(ko)
+write_deseq(ko, "pairwise-ko-untreated-vs-wt-untreated.csv")
+```
+
+There are `r nrow(subset(ko, padj < 0.05))` genes different in the untreated
+KO samples compared to the untreated WT samples.
+
+## WT treated vs WT untreated
+```{r pairwise-wt-treatment-effect}
+treatwt = results(dds, contrast=c("gt", "wt_ccl4", "wt_untreated"), addMLE=TRUE)
+treatwtmarked = markup_deseq(treatwt)
+plotMA_full(treatwt)
+volcano(treatwt)
+write_deseq(treatwt, "pairwise-wt-treated-vs-wt-untreated.csv")
+```
+
+There are `r nrow(subset(treatwt, padj < 0.05))` genes different in the
+WT treated samples compared to the WT untreated samples.
+
+### KO treated vs KO untreated
+```{r pairwise-treatment-on-ko}
+treatko = results(dds, contrast=c("gt", "yaptaz_ccl4", "yaptaz_untreated"),
+                  addMLE=TRUE)
+treatkomarked = markup_deseq(treatko)
+plotMA_full(treatko)
+volcano(treatko)
+write_deseq(treatko, "pairwise-ko-treated-vs-ko-untreated.csv")
+```
+
+There are `r nrow(subset(treatko, padj < 0.05))` genes different in the
+KO treated samples compared to the KO untreated samples.
+
+### Venn diagram
+Here is a Venn diagram of the overlaps of genes called significant in each
+of these comparisons.
+```{r venn-diagram-of-overlaps}
+kosig = subset(ko, padj < 0.05)
+treatwtsig = subset(treatwt, padj < 0.05)
+treatkosig = subset(treatko, padj < 0.05)
+library(gplots)
+venn(list("WT treated vs WT untreated"=rownames(treatwtsig),
+          "KO untreated vs WT untreated"=rownames(kosig),
+          "KO treated vs KO untreated"=rownames(treatkosig)))
+```
+
+### Differential expression output tables
+[KO untreated vs WT untreated](pairwise-ko-untreated-vs-wt-untreated.csv)
+
+[WT treated vs WT untreated](pairwise-wt-treated-vs-wt-untreated.csv)
+
+[KO treated vs KO untreated](pairwise-ko-treated-vs-ko-untreated.csv)
+
+
+## Pathway analysis
+Here we repeat the pathway analysis, but using the three sets of genes
+identified by the pairwise interactions as input.
+
+### KO untreated vs WT untreated
+```{r pairwise-pathway-ko-effect}
+library(readr)
+ko_enrich = enrich_cp(ko, "knockout-effect")
+ko_out = convert_core_ids(subset(ko_enrich$summary, qvalue < 0.05))
+ko_out = direction_breakdown(ko_out, ko)
+write_csv(ko_out, "pairwise-ko-untreated-vs-wt-untreated-pathways.csv")
+```
+
+### WT treated vs WT untreated
+```{r pairwise-wt-treatment-effect-pathway}
+treatwt_enrich = enrich_cp(treatwt, "treatment-effect-on-wt")
+treatwt_out = convert_core_ids(subset(treatwt_enrich$summary, qvalue < 0.05))
+treatwt_out = direction_breakdown(treatwt_out, treatwt)
+treatwt_int = read_csv("followup/treatment-wt.txt", col_names="ID")
+treatwt_out$interesting = treatwt_out$ID %in% treatwt_int$ID
+write_csv(treatwt_out, "pairwise-wt-treated-vs-wt-untreated-pathways.csv")
+```
+
+### KO treated vs KO untreated
+```{r pairwise-ko-treatment-effect-pathway}
+treatko_enrich = enrich_cp(treatko, "treatment-effect-on-ko")
+treatko_out = convert_core_ids(subset(treatko_enrich$summary, qvalue < 0.05))
+treatko_out = direction_breakdown(treatko_out, treatko)
+treatko_int = read_csv("followup/treatment-ko.txt", col_names="ID")
+treatko_out$interesting = treatko_out$ID %in% treatko_int$ID
+write_csv(treatko_out, "pairwise-ko-treated-vs-ko-untreated-pathways.csv")
+```
+
+### Pathway analysis output tables
+[KO untreated vs WT untreated, pathways](pairwise-ko-untreated-vs-wt-untreated-pathways.csv)
+
+[WT treated vs WT untreated, pathways](pairwise-wt-treated-vs-wt-untreated-pathways.csv)
+
+[KO treated vs KO untreated, pathways](pairwise-ko-treated-vs-ko-untreated-pathways.csv)
+
+# Comparison of interaction and pairwise
+## Knockout effect
+Here we compare the effect of the knockout identified by doing the pairwise
+comparisons and the effect identified by looking at the
+"ko" term in the interaction model:
+
+```{r pairwise-comp-ko}
+pairwise = read_csv("pairwise-ko-untreated-vs-wt-untreated.csv")
+interaction = read_csv("knockout-effect.csv")
+combined = pairwise %>%
+  left_join(interaction, by="id") %>%
+  dplyr::select(id, log2FoldChange.y, lfcMLE)
+colnames(combined) = c("id", "interaction", "paired")
+ggplot(combined, aes(interaction, paired)) + geom_point()
+```
+
+## WT treatment effect
+Here we compare the effect of the treatment on the wildtype that we
+identified by doing the pairwise comparisons and the effect identified
+by looking at the "treatment" term in the interaction model:
+
+```{r pairwise-wt-treatment}
+pairwise = read_csv("pairwise-wt-treated-vs-wt-untreated.csv")
+interaction = read_csv("treatment-effect-on-wildtype.csv")
+combined = pairwise %>%
+  left_join(interaction, by="id") %>%
+  dplyr::select(id, log2FoldChange.y, lfcMLE)
+colnames(combined) = c("id", "interaction", "paired")
+ggplot(combined, aes(interaction, paired)) + geom_point()
+```
+
+## KO treatment effect
+Here we compare the effect of the treatment on the knockout that we
+identified by doing the pairwise comparisons of the KO treated to the KO
+untreated and the effect identified by looking at the combination of the
+main treatment effect and the treatment effect specific to the KO.
+
+```{r ko-treatment}
+pairwise = read_csv("pairwise-ko-treated-vs-ko-untreated.csv")
+interaction = read_csv("treatment-effect-on-knockout.csv")
+combined = pairwise %>%
+  left_join(interaction, by="id") %>%
+  dplyr::select(id, log2FoldChange.y, lfcMLE)
+colnames(combined) = c("id", "interaction", "paired")
+ggplot(combined, aes(interaction, paired)) + geom_point()
+```

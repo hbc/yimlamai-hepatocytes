@@ -737,33 +737,31 @@ GO:1990777,lipoprotein particle,7/738,35/15746,0.0010283574596432078,0.015921810
 GO:2000106,regulation of leukocyte apoptotic process,11/729,83/15562,0.0016455015992042038,0.03028799438909046,0.026329644378806073,11,bp,specific-treatment-effect-on-ko,down,Ceacam1,FALSE
 GO:2000106,regulation of leukocyte apoptotic process,11/729,83/15562,0.0016455015992042038,0.03028799438909046,0.026329644378806073,11,bp,specific-treatment-effect-on-ko,up,Axl/Cd44/Mertk/Aurkb/Hcls1/Cd74/Adam8/Siglec1/Lgals3/Fcer1g,FALSE
 GO:2000816,negative regulation of mitotic sister chromatid separation,6/729,31/15562,0.0027909868496251425,0.041642792426793314,0.036200479353391504,6,bp,specific-treatment-effect-on-ko,up,Stil/Mad2l1/Anapc15/Plk1/Ccnb1/Cenpe,FALSE
-mmu00140,Steroid hormone biosynthesis,13/361,83/6004,0.0012244830744479462,0.030856973476088245,0.027196413548264915,13,kg,specific-treatment-effect-on-ko,down,Comt/Srd5a1/Cyp2c44/Hsd17b2/Ugt2a3/Ugt2b1/Hsd3b5/Ugt2b5/Hsd3b2/Ugt2b36,FALSE
-mmu00140,Steroid hormone biosynthesis,13/361,83/6004,0.0012244830744479462,0.030856973476088245,0.027196413548264915,13,kg,specific-treatment-effect-on-ko,up,Akr1c18/Sult1e1/Cyp2b9,FALSE
-mmu00140,Steroid hormone biosynthesis,13/361,83/6004,0.0012244830744479462,0.030856973476088245,0.027196413548264915,13,kg,specific-treatment-effect-on-ko,NA,Comt,FALSE
-mmu00480,Glutathione metabolism,10/361,56/6004,0.0016129622545153776,0.034405710351075404,0.030324164093888523,10,kg,specific-treatment-effect-on-ko,down,Gsto1/Gstk1/Gpx1,FALSE
-mmu00480,Glutathione metabolism,10/361,56/6004,0.0016129622545153776,0.034405710351075404,0.030324164093888523,10,kg,specific-treatment-effect-on-ko,up,Gstt3/Rrm2/Gpx7/Pgd/Hpgds/Rrm1/Gsta1,FALSE
-mmu00500,Starch and sucrose metabolism,9/361,48/6004,0.001923930023208029,0.03729464352680179,0.03287038339246107,9,kg,specific-treatment-effect-on-ko,down,Ugp2/Ugt2a3/Ugt2b1/Ugt2b5/Ugt2b36/Amy1,FALSE
-mmu00500,Starch and sucrose metabolism,9/361,48/6004,0.001923930023208029,0.03729464352680179,0.03287038339246107,9,kg,specific-treatment-effect-on-ko,up,Hk2/Hk3/Pygb,FALSE
-mmu00980,Metabolism of xenobiotics by cytochrome P450,12/361,61/6004,2.2131390663074197e-4,0.011154220894189396,0.00983099669454454,12,kg,specific-treatment-effect-on-ko,down,Dhdh/Gsto1/Gstk1/Ugt2a3/Ugt2b1/Adh4/Cyp2f2/Ugt2b5/Ugt2b36,FALSE
-mmu00980,Metabolism of xenobiotics by cytochrome P450,12/361,61/6004,2.2131390663074197e-4,0.011154220894189396,0.00983099669454454,12,kg,specific-treatment-effect-on-ko,up,Gstt3/Hpgds/Gsta1,FALSE
-mmu00982,Drug metabolism - cytochrome P450,11/361,62/6004,0.0010086855689455214,0.0282431959304746,0.024892708192690648,11,kg,specific-treatment-effect-on-ko,down,Gsto1/Gstk1/Ugt2a3/Ugt2b1/Adh4/Ugt2b5/Aox3/Ugt2b36,FALSE
-mmu00982,Drug metabolism - cytochrome P450,11/361,62/6004,0.0010086855689455214,0.0282431959304746,0.024892708192690648,11,kg,specific-treatment-effect-on-ko,up,Gstt3/Hpgds/Gsta1,FALSE
-mmu01200,Carbon metabolism,17/361,113/6004,3.712586889483297e-4,0.015592864935829847,0.013743084801420629,17,kg,specific-treatment-effect-on-ko,down,Dld/Aldh6a1/Pdhb/Mut/Agxt/Hao1/Idh3b/Gpt2/Hibch/Suclg2/Fbp1,FALSE
-mmu01200,Carbon metabolism,17/361,113/6004,3.712586889483297e-4,0.015592864935829847,0.013743084801420629,17,kg,specific-treatment-effect-on-ko,up,Hk2/Psat1/Hk3/Pgd/Psph/Pkm,FALSE
-mmu04110,Cell cycle,20/361,122/6004,3.279904873491175e-5,0.002755120093732587,0.00242828045019873,20,kg,specific-treatment-effect-on-ko,down,Smc3,FALSE
-mmu04110,Cell cycle,20/361,122/6004,3.279904873491175e-5,0.002755120093732587,0.00242828045019873,20,kg,specific-treatment-effect-on-ko,up,Mcm2/Mcm5/Tgfb3/Mcm4/Pkmyt1/Abl1/E2f1/Rbl1/Ccna2/Orc1/Chek2/Mad2l1/Plk1/Ccnb2/Ttk/Ccnb1/Mcm3/Cdc25c/Espl1,FALSE
-mmu04145,Phagosome,23/361,163/6004,9.840604090954822e-5,0.006199580577301538,0.005464124903135441,23,kg,specific-treatment-effect-on-ko,down,Rab5b/Calr/H2-K1/H2-Q1,FALSE
-mmu04145,Phagosome,23/361,163/6004,9.840604090954822e-5,0.006199580577301538,0.005464124903135441,23,kg,specific-treatment-effect-on-ko,up,Itgb2/Tubb6/Cyba/Cybb/Tfrc/Tuba1b/Ncf2/Coro1a/Itgam/H2-Aa/Tubb4b/H2-DMa/Ctss/Cd14/Rab7b/Fcgr4/H2-Eb1/H2-Ab1/Clec7a,FALSE
-mmu04145,Phagosome,23/361,163/6004,9.840604090954822e-5,0.006199580577301538,0.005464124903135441,23,kg,specific-treatment-effect-on-ko,NA,Itgam,FALSE
-mmu04610,Complement and coagulation cascades,17/361,79/6004,3.0921097574710665e-6,3.8960582944135437e-4,3.433869256981027e-4,17,kg,specific-treatment-effect-on-ko,down,C9/F13b/C8b/Serpina5,FALSE
-mmu04610,Complement and coagulation cascades,17/361,79/6004,3.0921097574710665e-6,3.8960582944135437e-4,3.433869256981027e-4,17,kg,specific-treatment-effect-on-ko,up,Itgb2/Vwf/Plau/Hc/Itgam/Itgax/C1qa/C1qc/C1qb/C3ar1/Vsig4/Plaur/C5ar1,FALSE
-mmu04610,Complement and coagulation cascades,17/361,79/6004,3.0921097574710665e-6,3.8960582944135437e-4,3.433869256981027e-4,17,kg,specific-treatment-effect-on-ko,NA,Itgam,FALSE
-mmu05140,Leishmaniasis,11/361,62/6004,0.0010086855689455214,0.0282431959304746,0.024892708192690648,11,kg,specific-treatment-effect-on-ko,up,Itgb2/Cyba/Tgfb3/Ncf2/Itgam/H2-Aa/H2-DMa/Marcksl1/Fcgr4/H2-Eb1/H2-Ab1,FALSE
-mmu05140,Leishmaniasis,11/361,62/6004,0.0010086855689455214,0.0282431959304746,0.024892708192690648,11,kg,specific-treatment-effect-on-ko,NA,Itgam,FALSE
-mmu05150,Staphylococcus aureus infection,15/361,45/6004,2.391150441466054e-8,6.025699112494456e-6,5.310870980519342e-6,15,kg,specific-treatment-effect-on-ko,down,Dsg1c,FALSE
-mmu05150,Staphylococcus aureus infection,15/361,45/6004,2.391150441466054e-8,6.025699112494456e-6,5.310870980519342e-6,15,kg,specific-treatment-effect-on-ko,up,Itgb2/Hc/Itgam/Itgal/H2-Aa/C1qa/C1qc/C1qb/H2-DMa/C3ar1/C5ar1/Fcgr4/H2-Eb1/H2-Ab1,FALSE
-mmu05150,Staphylococcus aureus infection,15/361,45/6004,2.391150441466054e-8,6.025699112494456e-6,5.310870980519342e-6,15,kg,specific-treatment-effect-on-ko,NA,Itgam,FALSE
-mmu05152,Tuberculosis,19/361,151/6004,0.0016383671595750194,0.034405710351075404,0.030324164093888523,19,kg,specific-treatment-effect-on-ko,down,Rab5b,FALSE
-mmu05152,Tuberculosis,19/361,151/6004,0.0016383671595750194,0.034405710351075404,0.030324164093888523,19,kg,specific-treatment-effect-on-ko,up,Itgb2/Ksr1/Tgfb3/Syk/Cd74/Coro1a/Itgam/Itgax/H2-Aa/H2-DMa/Ctss/Tlr1/Cd14/Fcer1g/Fcgr4/H2-Eb1/H2-Ab1/Clec7a,FALSE
-mmu05152,Tuberculosis,19/361,151/6004,0.0016383671595750194,0.034405710351075404,0.030324164093888523,19,kg,specific-treatment-effect-on-ko,NA,Itgam,FALSE
-mmu05310,Asthma,5/361,13/6004,6.579844487302634e-4,0.02368744015428948,0.02087740130557678,5,kg,specific-treatment-effect-on-ko,up,H2-Aa/H2-DMa/Fcer1g/H2-Eb1/H2-Ab1,FALSE
+mmu00140,Steroid hormone biosynthesis,13/361,83/6009,0.0012152601787199352,0.030624556503742368,0.026991568179990145,13,kg,specific-treatment-effect-on-ko,down,Comt/Srd5a1/Cyp2c44/Hsd17b2/Ugt2a3/Ugt2b1/Hsd3b5/Ugt2b5/Hsd3b2/Ugt2b36,FALSE
+mmu00140,Steroid hormone biosynthesis,13/361,83/6009,0.0012152601787199352,0.030624556503742368,0.026991568179990145,13,kg,specific-treatment-effect-on-ko,up,Akr1c18/Sult1e1/Cyp2b9,FALSE
+mmu00140,Steroid hormone biosynthesis,13/361,83/6009,0.0012152601787199352,0.030624556503742368,0.026991568179990145,13,kg,specific-treatment-effect-on-ko,NA,Comt,FALSE
+mmu00480,Glutathione metabolism,10/361,56/6009,0.0016029639335280155,0.0340779694110186,0.03003530303143244,10,kg,specific-treatment-effect-on-ko,down,Gsto1/Gstk1/Gpx1,FALSE
+mmu00480,Glutathione metabolism,10/361,56/6009,0.0016029639335280155,0.0340779694110186,0.03003530303143244,10,kg,specific-treatment-effect-on-ko,up,Gstt3/Rrm2/Gpx7/Pgd/Hpgds/Rrm1/Gsta1,FALSE
+mmu00980,Metabolism of xenobiotics by cytochrome P450,12/361,61/6009,2.1961466683535338e-4,0.01106857920850181,0.00975551467415991,12,kg,specific-treatment-effect-on-ko,down,Dhdh/Gsto1/Gstk1/Ugt2a3/Ugt2b1/Adh4/Cyp2f2/Ugt2b5/Ugt2b36,FALSE
+mmu00980,Metabolism of xenobiotics by cytochrome P450,12/361,61/6009,2.1961466683535338e-4,0.01106857920850181,0.00975551467415991,12,kg,specific-treatment-effect-on-ko,up,Gstt3/Hpgds/Gsta1,FALSE
+mmu00982,Drug metabolism - cytochrome P450,11/361,62/6009,0.0010018471376830663,0.028051719855125855,0.024723946906564563,11,kg,specific-treatment-effect-on-ko,down,Gsto1/Gstk1/Ugt2a3/Ugt2b1/Adh4/Ugt2b5/Aox3/Ugt2b36,FALSE
+mmu00982,Drug metabolism - cytochrome P450,11/361,62/6009,0.0010018471376830663,0.028051719855125855,0.024723946906564563,11,kg,specific-treatment-effect-on-ko,up,Gstt3/Hpgds/Gsta1,FALSE
+mmu01200,Carbon metabolism,17/361,113/6009,3.67705951160185e-4,0.015443649948727768,0.013611571174526146,17,kg,specific-treatment-effect-on-ko,down,Dld/Aldh6a1/Pdhb/Mut/Agxt/Hao1/Idh3b/Gpt2/Hibch/Suclg2/Fbp1,FALSE
+mmu01200,Carbon metabolism,17/361,113/6009,3.67705951160185e-4,0.015443649948727768,0.013611571174526146,17,kg,specific-treatment-effect-on-ko,up,Hk2/Psat1/Hk3/Pgd/Psph/Pkm,FALSE
+mmu04110,Cell cycle,20/361,122/6009,3.241431925507581e-5,0.002722802817426368,0.0023997969694108763,20,kg,specific-treatment-effect-on-ko,down,Smc3,FALSE
+mmu04110,Cell cycle,20/361,122/6009,3.241431925507581e-5,0.002722802817426368,0.0023997969694108763,20,kg,specific-treatment-effect-on-ko,up,Mcm2/Mcm5/Tgfb3/Mcm4/Pkmyt1/Abl1/E2f1/Rbl1/Ccna2/Orc1/Chek2/Mad2l1/Plk1/Ccnb2/Ttk/Ccnb1/Mcm3/Cdc25c/Espl1,FALSE
+mmu04145,Phagosome,23/361,163/6009,9.718603458697722e-5,0.006122720178979565,0.00539638244680321,23,kg,specific-treatment-effect-on-ko,down,Rab5b/Calr/H2-K1/H2-Q1,FALSE
+mmu04145,Phagosome,23/361,163/6009,9.718603458697722e-5,0.006122720178979565,0.00539638244680321,23,kg,specific-treatment-effect-on-ko,up,Itgb2/Tubb6/Cyba/Cybb/Tfrc/Tuba1b/Ncf2/Coro1a/Itgam/H2-Aa/Tubb4b/H2-DMa/Ctss/Cd14/Rab7b/Fcgr4/H2-Eb1/H2-Ab1/Clec7a,FALSE
+mmu04145,Phagosome,23/361,163/6009,9.718603458697722e-5,0.006122720178979565,0.00539638244680321,23,kg,specific-treatment-effect-on-ko,NA,Itgam,FALSE
+mmu04610,Complement and coagulation cascades,17/361,79/6009,3.0576295652080154e-6,3.8526132521620994e-4,3.395578096099428e-4,17,kg,specific-treatment-effect-on-ko,down,C9/F13b/C8b/Serpina5,FALSE
+mmu04610,Complement and coagulation cascades,17/361,79/6009,3.0576295652080154e-6,3.8526132521620994e-4,3.395578096099428e-4,17,kg,specific-treatment-effect-on-ko,up,Itgb2/Vwf/Plau/Hc/Itgam/Itgax/C1qa/C1qc/C1qb/C3ar1/Vsig4/Plaur/C5ar1,FALSE
+mmu04610,Complement and coagulation cascades,17/361,79/6009,3.0576295652080154e-6,3.8526132521620994e-4,3.395578096099428e-4,17,kg,specific-treatment-effect-on-ko,NA,Itgam,FALSE
+mmu05140,Leishmaniasis,11/361,62/6009,0.0010018471376830663,0.028051719855125855,0.024723946906564563,11,kg,specific-treatment-effect-on-ko,up,Itgb2/Cyba/Tgfb3/Ncf2/Itgam/H2-Aa/H2-DMa/Marcksl1/Fcgr4/H2-Eb1/H2-Ab1,FALSE
+mmu05140,Leishmaniasis,11/361,62/6009,0.0010018471376830663,0.028051719855125855,0.024723946906564563,11,kg,specific-treatment-effect-on-ko,NA,Itgam,FALSE
+mmu05150,Staphylococcus aureus infection,15/361,45/6009,2.364821084656359e-8,5.959349133334025e-6,5.252392093289388e-6,15,kg,specific-treatment-effect-on-ko,down,Dsg1c,FALSE
+mmu05150,Staphylococcus aureus infection,15/361,45/6009,2.364821084656359e-8,5.959349133334025e-6,5.252392093289388e-6,15,kg,specific-treatment-effect-on-ko,up,Itgb2/Hc/Itgam/Itgal/H2-Aa/C1qa/C1qc/C1qb/H2-DMa/C3ar1/C5ar1/Fcgr4/H2-Eb1/H2-Ab1,FALSE
+mmu05150,Staphylococcus aureus infection,15/361,45/6009,2.364821084656359e-8,5.959349133334025e-6,5.252392093289388e-6,15,kg,specific-treatment-effect-on-ko,NA,Itgam,FALSE
+mmu05152,Tuberculosis,19/361,151/6009,0.001622760448143743,0.0340779694110186,0.03003530303143244,19,kg,specific-treatment-effect-on-ko,down,Rab5b,FALSE
+mmu05152,Tuberculosis,19/361,151/6009,0.001622760448143743,0.0340779694110186,0.03003530303143244,19,kg,specific-treatment-effect-on-ko,up,Itgb2/Ksr1/Tgfb3/Syk/Cd74/Coro1a/Itgam/Itgax/H2-Aa/H2-DMa/Ctss/Tlr1/Cd14/Fcer1g/Fcgr4/H2-Eb1/H2-Ab1/Clec7a,FALSE
+mmu05152,Tuberculosis,19/361,151/6009,0.001622760448143743,0.0340779694110186,0.03003530303143244,19,kg,specific-treatment-effect-on-ko,NA,Itgam,FALSE
+mmu05310,Asthma,5/361,13/6009,6.554754061187494e-4,0.02359711462027498,0.020797791081361823,5,kg,specific-treatment-effect-on-ko,up,H2-Aa/H2-DMa/Fcer1g/H2-Eb1/H2-Ab1,FALSE
