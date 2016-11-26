@@ -988,7 +988,7 @@ write_deseq(combined, "yaptaz-ccl4-markers.csv")
 ## Marker gene tables
 [WT, untreated markers](wt-untreated-markers.csv)
 
-[WT, CCL4 markers](wt-CCL4-markers.csv)
+[WT, CCL4 markers](wt-ccl4-markers.csv)
 
 [YapTaz, untreated markers](yaptaz-untreated-markers.csv)
 
