@@ -1,0 +1,99 @@
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    highlight: zenburn
+    theme: flatly
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(tidy=TRUE, highlight=TRUE, dev="png",
+               cache=TRUE, highlight=TRUE, autodep=TRUE, warning=FALSE, error=FALSE,
+               message=FALSE, prompt=TRUE, comment='', fig.cap='')
+```
+
+# Heatmap of DE genes
+
+```{r load-de-results}
+library(readr)
+library(dplyr)
+readandfilter = function(filename) {
+  df = read_csv(filename) %>%
+    filter(padj < 0.05) %>%
+    filter(abs(log2FoldChange) > 2) %>%
+    filter(baseMean > 50)
+  return(df)
+}
+ko_treated = readandfilter("pairwise-ko-treated-vs-ko-untreated.csv")
+ko_untreated = readandfilter("pairwise-ko-untreated-vs-wt-untreated.csv")
+wt_treated = readandfilter("pairwise-wt-treated-vs-wt-untreated.csv")
+```
+
+```{r make-heatmap}
+toplot = rbind(ko_treated, ko_untreated, wt_treated) %>%
+  arrange(pvalue)
+toplot = toplot$mgi_symbol
+tpm = read_csv("tpm.csv") %>% filter(mgi_symbol != "") %>%
+  na.omit() %>%
+  filter(!duplicated(mgi_symbol)) %>%
+  filter(mgi_symbol %in% toplot) %>%
+  as.data.frame()
+rownames(tpm) = tpm$mgi_symbol
+tpm$rowname = NULL
+tpm$mgi_symbol = NULL
+tpm = log2(tpm + 1)
+library(RColorBrewer)
+pheatmap(tpm, fontsize=6, scale="row", row_names=FALSE,
+         color = colorRampPalette(rev(brewer.pal(n = 6, name = "RdYlBu")))(100))
+```
+
+# Marker genes instead
+```{r load-marker-genes}
+markers = read_csv("wt-untreated-markers.csv")
+markers = rbind(markers, read_csv("wt-ccl4-markers.csv"))
+markers = rbind(markers, read_csv("yaptaz-ccl4-markers.csv"))
+markers = rbind(markers, read_csv("yaptaz-untreated-markers.csv"))
+toplot = markers$mgi_symbol
+tpm = read_csv("tpm.csv") %>% filter(mgi_symbol != "") %>%
+  na.omit() %>%
+  filter(!duplicated(mgi_symbol)) %>%
+  filter(mgi_symbol %in% toplot) %>%
+  as.data.frame()
+rownames(tpm) = tpm$mgi_symbol
+tpm$rowname = NULL
+tpm$mgi_symbol = NULL
+tpm = log(log(tpm + 1) + 1)
+pheatmap(tpm, kmeans_k=4)
+```
+
+# Expressed Venn diagrams
+Here we make a Venn diagram of the how many genes are expressed in each
+condition. We will call expressed genes per condition which have a median TPM >
+1 for each condition.
+
+```{r expressed}
+library(tidyr)
+library(ggplot2)
+ggplot(tpm, aes(tpm)) + geom_histogram() + scale_x_log10() + scale_y_log10()
+table(tpm$tpm < 1)
+load("deg.rda")
+sampledata = deg[[2]]
+sampledata$sample = rownames(sampledata)
+tpm = read_csv("tpm.csv") %>%
+  gather(sample, tpm, -mgi_symbol, -rowname) %>%
+  left_join(sampledata, by="sample") %>%
+  group_by(rowname) %>%
+  mutate(mtotal=sum(tpm > 2)) %>%
+  filter(mtotal > 3) %>%
+  group_by(rowname, gt) %>%
+  summarise(mtpm = median(tpm)) %>%
+  mutate(expressed = mtpm > 1)
+library(gplots)
+wt_ccl4 = subset(tpm, gt == "wt_ccl4" & expressed)$rowname
+wt_untreated = subset(tpm, gt == "wt_untreated" & expressed)$rowname
+yaptaz_ccl4 = subset(tpm, gt == "yaptaz_ccl4" & expressed)$rowname
+yaptaz_untreated = subset(tpm, gt == "yaptaz_untreated" & expressed)$rowname
+venn(list("WT Ccl4"=wt_ccl4, "WT"=wt_untreated, "YapTaz Ccl4"=yaptaz_ccl4,
+     "YapTaz"=yaptaz_untreated))
+```
