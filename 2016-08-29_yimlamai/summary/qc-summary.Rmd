@@ -1023,7 +1023,7 @@ KO samples compared to the untreated WT samples.
 treatwt = results(dds, contrast=c("gt", "wt_ccl4", "wt_untreated"), addMLE=TRUE)
 treatwtmarked = markup_deseq(treatwt)
 plotMA_full(treatwt)
-volcano(treatwt)
+
 write_deseq(treatwt, "pairwise-wt-treated-vs-wt-untreated.csv")
 ```
 
@@ -1149,4 +1149,24 @@ combined = pairwise %>%
   dplyr::select(id, log2FoldChange.y, lfcMLE)
 colnames(combined) = c("id", "interaction", "paired")
 ggplot(combined, aes(interaction, paired)) + geom_point()
+```
+
+# PCA weightings
+```{r pca-weightings}
+pca_loadings = function(object, ntop=500) {
+  rv <- matrixStats::rowVars(assay(object))
+  select <- order(rv, decreasing = TRUE)[seq_len(min(ntop,
+      length(rv)))]
+  pca <- prcomp(t(assay(object)[select, ]))
+  percentVar <- pca$sdev^2/sum(pca$sdev^2)
+  names(percentVar) = colnames(pca$x)
+  pca$percentVar = percentVar
+  return(pca)}
+pc = pca_loadings(vst)
+rotation = pc$rotation * percentVar %>%
+  abs() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column(var="ensembl_gene_id") %>%
+  left_join(symbols, by="ensembl_gene_id")
+write_csv(rotation, "PCA-rotation.csv")
 ```

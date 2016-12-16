@@ -22,7 +22,7 @@ readandfilter = function(filename) {
   df = read_csv(filename) %>%
     filter(padj < 0.05) %>%
     filter(abs(log2FoldChange) > 2) %>%
-    filter(baseMean > 50)
+    filter(baseMean > 10)
   return(df)
 }
 ko_treated = readandfilter("pairwise-ko-treated-vs-ko-untreated.csv")
@@ -31,6 +31,7 @@ wt_treated = readandfilter("pairwise-wt-treated-vs-wt-untreated.csv")
 ```
 
 ```{r make-heatmap}
+library(pheatmap)
 toplot = rbind(ko_treated, ko_untreated, wt_treated) %>%
   arrange(pvalue)
 toplot = toplot$mgi_symbol
@@ -44,11 +45,37 @@ tpm$rowname = NULL
 tpm$mgi_symbol = NULL
 tpm = log2(tpm + 1)
 library(RColorBrewer)
-pheatmap(tpm, fontsize=6, scale="row", row_names=FALSE,
-         color = colorRampPalette(rev(brewer.pal(n = 6, name = "RdYlBu")))(100))
+pheatmap(tpm, fontsize=8, scale="row", show_rownames=FALSE, legend=TRUE,
+         color = colorRampPalette(rev(brewer.pal(n = 10, name = "RdYlBu")))(100))
 ```
 
-# Marker genes instead
+# Hippo gene signatures
+```{r hippo-heatmap}
+library(biomaRt)
+tpm = read_csv("tpm.csv") %>% filter(mgi_symbol != "") %>%
+  na.omit() %>%
+  filter(!duplicated(mgi_symbol)) %>%
+  as.data.frame()
+rownames(tpm) = tpm$mgi_symbol
+tpm$rowname = NULL
+tpm$mgi_symbol = NULL
+tpm = log2(tpm + 1)
+human = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+mouse = useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+symbolconv = getLDS(attributes = c("mgi_symbol", "ensembl_gene_id"),
+                    mart = mouse,
+                    attributesL = c("hgnc_symbol"), martL = human)
+colnames(symbolconv) = c("mouse", "id", "human")
+target_fn = "../../metadata/piccolo.txt"
+targets = read_csv(target_fn, col_names=c("symbol"))
+targets = targets %>%
+  left_join(symbolconv, by=c("symbol"="human"))
+genes = unique(targets$mouse)[!is.na(unique(targets$mouse))]
+genes = genes[genes %in% rownames(tpm)]
+pheatmap(tpm[genes,], fontsize=8, scale="row", legend=TRUE,
+         color = colorRampPalette(rev(brewer.pal(n = 10, name = "RdYlBu")))(100))
+```
+
 ```{r load-marker-genes}
 markers = read_csv("wt-untreated-markers.csv")
 markers = rbind(markers, read_csv("wt-ccl4-markers.csv"))
@@ -75,8 +102,7 @@ condition. We will call expressed genes per condition which have a median TPM >
 ```{r expressed}
 library(tidyr)
 library(ggplot2)
-ggplot(tpm, aes(tpm)) + geom_histogram() + scale_x_log10() + scale_y_log10()
-table(tpm$tpm < 1)
+library(VennDiagram)
 load("deg.rda")
 sampledata = deg[[2]]
 sampledata$sample = rownames(sampledata)
