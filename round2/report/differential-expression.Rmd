@@ -1,0 +1,395 @@
+---
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    highlight: zenburn
+    theme: flatly
+---
+
+---
+title: "Differential expression"
+author: ""
+date: "`r Sys.Date()`"
+bibliography: bcbioRnaseq.bib
+---
+
+```{r setup, message=FALSE}
+library(DESeq2)
+library(bcbioRnaseq)
+
+downloads()
+
+source("setup.R") # modify parameters before exec this line
+# Contrast
+# 1. Design matrix parameter.
+# 2. Numerator for LFC (expt).
+# 3. Denominator for LFC (control).
+# @seealso [DESeq2::results()]
+contrast <- c("gender", "male", "female")
+
+# Design formula
+design <- formula(~ gender+genotype+treatment) # change to desire column
+
+# Significance cutoffs
+alpha <- 0.05
+lfc <- 1
+```
+
+```{r header, child="header.Rmd"}
+load("data/bcb.rda")
+```
+
+
+```{r dds-de, results="hide", eval=sum(ls() == "ddsde")==0}
+txi <- bcbio(bcb, "tximport")
+coldata <- colData(bcb)
+coldata$treatment = relevel(coldata$treatment, ref="untreated")
+coldata$genotype = relevel(coldata$genotype, ref="wt")
+coldata$gender = relevel(coldata$gender, ref="male")
+
+ddsde <- DESeqDataSetFromTximport(
+  txi = txi,
+  colData = coldata,
+  design = design)
+ddsde <- DESeq(ddsde)
+rld <- rlog(ddsde)
+save_data(ddsde, dir=data_out)
+resultsNames(ddsde)
+sizeFactors(ddsde)
+```
+
+# Contrasts to look at
+
+```
+All of the original experiments contained male hepatocytes under the following
+treatments:
+
+1) Normal - no treatment
+2) Normal - CCl4
+3) yap/taz knockout
+4) Yap/taz knockout - CCl4
+
+If we can compare these male and female (normal) hepatocytes with condition 1) that would be great. I’m hoping that if we did a PCA plot, with the prior and current mice, then the males would group together and females would group elsewhere. A PCA plot and a gene heat map would be more than enough for my grant.
+
+At worst, if the batch effect is too difficult to overcome in a short time, we could just compare the expression pattern from the 3 males and 5 females that will be sequenced on the same lane in this experiment.
+
+I am envisioning that this data would be a figure before the Yap/Taz manipulations in the current paper as well, showing the differences that sex may play.
+```
+
+Dean wants to look at gender specific differences in hepatocytes, here is what
+we have for samples in terms of genotype, gender and treatment.
+
+```{r sample-count-plot, results='asis'}
+library(dplyr)
+sample_counts = colData(bcb) %>%
+  as.data.frame() %>%
+  group_by(gender, genotype, treatment) %>%
+  summarise(count=n())
+knitr::kable(sample_counts)
+```
+
+# Clustering
+The samples separate by gender and we can see the batches of untreated male
+samples cluster together, so the gender-specific differences are stronger than
+any batch effect that might be occuring. That is a good sign for trying to find
+differences between the female and male samples.
+
+```{r clustering}
+vst = varianceStabilizingTransformation(ddsde)
+pca_loadings = function(object, ntop=500) {
+  rv <- matrixStats::rowVars(assay(object))
+  select <- order(rv, decreasing = TRUE)[seq_len(min(ntop,
+      length(rv)))]
+  pca <- prcomp(t(assay(object)[select, ]))
+  percentVar <- pca$sdev^2/sum(pca$sdev^2)
+  names(percentVar) = colnames(pca$x)
+  pca$percentVar = percentVar
+  return(pca)}
+pc = pca_loadings(vst)
+comps = data.frame(pc$x)
+comps$description = rownames(comps)
+coldata$description = rownames(coldata)
+library(dplyr)
+comps = comps %>% left_join(as.data.frame(coldata), by="description")
+comps$batch = ifelse(grepl("_S", comps$description), "second", "first")
+comps$gender_batch = paste(comps$gender, comps$batch, sep="_")
+colorby = "gender"
+pca_plot = function(comps, nc1, nc2, colorby) {
+   c1str = paste0("PC", nc1)
+   c2str = paste0("PC", nc2)
+  if(!(c1str %in% colnames(comps) && c2str %in% colnames(comps))) {
+    warning("Higher order components not found, skipping plotting.")
+    return(NA)
+  }
+  ggplot(comps, aes_string(c1str, c2str, color=colorby)) +
+    geom_point() + theme_bw() +
+    facet_wrap(~genotype+treatment) +
+    xlab(paste0(c1str, ": ", round(pc$percentVar[nc1] * 100), "% variance")) +
+    ylab(paste0(c2str, ": ", round(pc$percentVar[nc2] * 100), "% variance"))
+}
+pca_plot(comps, 1, 2, "gender")
+```
+
+# Effect of gender
+We fit a model that takes into account the effect of genotype, the effect of
+treatment and the effect of gender and look at the effect of gender, controlling
+for all of the other effects.
+
+# Alpha level (FDR) cutoffs
+
+Let's take a look at the number of genes we get with different false discovery rate (FDR) cutoffs. These tests subset *P* values that have been multiple test corrected using the Benjamini Hochberg (BH) method [@Benjamini:1995ws].
+
+```{r alpha_summary}
+contrast <- c("gender", "female", "male")
+gender <- results(ddsde, contrast=c("gender", "female", "male")) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column(var="ensgene") %>%
+  left_join(as.data.frame(rowData(bcb)), by="ensgene")
+gendersig <- subset(gender, padj < 0.05)
+gendersighigh <- subset(gender, padj < 0.05 & abs(log2FoldChange) > 1)
+```
+
+There are `r nrow(gendersig)` genes that vary with gender at FDR < 0.05,
+and there are `r nrow(gendersighigh)` that have a fold change greater than
+two-fold.
+
+As a sanity check, we should be seeing Xist as higher in the female. We can
+see that is true below (positive log2FoldChange is higher in the females for
+this comparison).
+
+```{r check-xist}
+subset(gender, symbol == "Xist")
+```
+
+# Plots
+
+## Mean average (MA)
+
+An MA plot compares transformed counts on `M` (log ratio) and `A` (mean average) scales [@Yang:2002ty].
+
+```{r plot_ma}
+label = gender %>% arrange(padj) %>% head(25)
+plot_ma(gender, label_points=label$symbol) + theme_light(base_size=10)
+```
+
+
+## Volcano
+
+A volcano plot compares significance (BH-adjusted *P* value) against fold change (log2) [@Cui:2003kh; @Li:2014fv]. Genes in the green box with text labels have an adjusted *P* value are likely to be the top candidate genes of interest.
+
+```{r plot_volcano}
+res = results(ddsde, contrast=c("gender", "female", "male"))
+plot_volcano(bcb, res = res, lfc = lfc)
+```
+
+## Heatmap
+
+This plot shows only differentially expressed genes on a per-sample basis. We have scaled the data by row and used the `ward.D2` method for clustering [@WardJr:1963eu].
+
+```{r plot_deg_heatmap}
+plot_deg_heatmap(bcb, res = res, dt = rld, lfc = lfc)
+```
+
+Below is a heatmap of just the untreated, wildtype samples, so just looking at
+the affect of gender.
+
+```{r heatmap-untreated-only}
+untreated = bcb[, colData(bcb)$treatment == "untreated" & colData(bcb)$genotype == "wt"]
+untreateddds = ddsde[, colData(bcb)$treatment == "untreated" & colData(bcb)$genotype == "wt"]
+rld = rlog(untreateddds)
+plot_deg_heatmap(untreated, res=res, dt=rld, lfc=lfc)
+```
+
+```{r write-counts}
+tpm = txi$abundance %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("ensgene")
+counts = txi$counts %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("ensgene")
+readr::write_csv(tpm, "results/tpm.csv.gz")
+readr::write_csv(counts, "results/counts.csv.gz")
+```
+
+## GSEA
+```{r gsea-analysis}
+orgdb = "org.Mm.eg.db"
+library(dplyr)
+library(clusterProfiler)
+library(orgdb, character.only=TRUE)
+library(biomaRt)
+biomart_dataset = "mmusculus_gene_ensembl"
+keggname = "mmu"
+mart = biomaRt::useMart(biomart = "ensembl", dataset=biomart_dataset)
+symbols = biomaRt::getBM(attributes=c("ensembl_gene_id", "mgi_symbol"), mart=mart)
+entrez = biomaRt::getBM(attributes = c("ensembl_gene_id", "entrezgene"), mart=mart)
+entrezsymbol = biomaRt::getBM(attributes=c("mgi_symbol", "entrezgene"), mart=mart)
+entrezsymbol$entrezgene = as.character(entrezsymbol$entrezgene)
+entrez$entrezgene = as.character(entrez$entrezgene)
+
+summarize_cp = function(res, comparison) {
+  summaries = data.frame()
+  for(ont in names(res)) {
+     ontsum = summary(res[[ont]])
+     ontsum$ont = ont
+     summaries = rbind(summaries, ontsum)
+  }
+  summaries$comparison = comparison
+  return(summaries)
+}
+
+gsea_cp = function(res, comparison) {
+  res = res %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("ensembl_gene_id") %>%
+    left_join(entrez, by="ensembl_gene_id") %>%
+    filter(!is.na(entrezgene)) %>%
+    filter(!is.na(log2FoldChange)) %>%
+    filter(!is.na(lfcSE))
+  fccol = ifelse("lfcMLE" %in% colnames(res), "lfcMLE", "log2FoldChange")
+  lfc = data.frame(res)[, fccol]
+  lfcse = data.frame(res)[, "lfcSE"]
+  genes = lfc/lfcse
+  names(genes) = res$entrezgene
+  genes = genes[order(genes, decreasing=TRUE)]
+  cc = gseGO(genes, ont="CC", OrgDb=orgdb,
+             nPerm=500, pvalueCutoff=1, pAdjustMethod="BH",
+             verbose=TRUE)
+  mf = gseGO(genes, ont="MF", OrgDb=orgdb,
+             nPerm=500, pvalueCutoff=1, pAdjustMethod="BH",
+             verbose=TRUE)
+  bp = gseGO(genes, ont="bp", OrgDb=orgdb,
+             nPerm=500, pvalueCutoff=1, pAdjustMethod="BH",
+             verbose=TRUE)
+  genes = data.frame(res)[, fccol]
+  names(genes) = res$entrezgene
+  genes = genes[order(genes, decreasing=TRUE)]
+  genes = genes[!is.na(genes)]
+  kg = gseKEGG(geneList=genes, organism=keggname, nPerm=500,
+               pvalueCutoff=1, verbose=TRUE)
+  if(orgdb == "org.Hs.eg.db") {
+    do = summary(gseDO(geneList=genes, nPerm=500, pvalueCutoff=1,
+                       pAdjustMethod="BH", verbose=TRUE))
+    do$ont = "DO"
+    all = list(mf=mf, cc=cc, bp=bp, kg=kg, do=do)
+  }
+  else {
+    all = list(mf=mf, cc=cc, bp=bp, kg=kg)
+  }
+  all[["summary"]] = summarize_cp(all, comparison)
+  return(all)}
+
+convert_core_ids = function(res) {
+  res = res %>%
+    mutate(geneID=strsplit(as.character(geneID), "/")) %>%
+    tidyr::unnest(geneID) %>%
+    left_join(entrezsymbol, by=c("geneID"="entrezgene")) %>%
+    group_by(ID, Description, GeneRatio, BgRatio, pvalue, p.adjust, qvalue,
+            Count, ont, comparison) %>%
+    summarise(geneID=paste(geneID, collapse="/"),
+              symbol=paste(mgi_symbol, collapse="/"))
+  return(res)
+  }
+direction_breakdown = function(res, deseq2res) {
+  ocols = colnames(res)
+  deseq2res = deseq2res %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column() %>%
+    dplyr::select(log2FoldChange, rowname)
+  ids = res %>% mutate(symbol=strsplit(as.character(symbol), "/")) %>%
+    tidyr::unnest(symbol) %>%
+    left_join(symbols, by=c("symbol"="mgi_symbol")) %>%
+    left_join(deseq2res, by=c("ensembl_gene_id"="rowname")) %>%
+    mutate(direction=ifelse(log2FoldChange > 0, "up", "down"))
+  ids = ids[, c(ocols, "direction")]
+  ids = ids %>% group_by(ID, Description, GeneRatio, BgRatio, pvalue,
+                         p.adjust, qvalue, Count, ont, pvalue, p.adjust,
+                         qvalue, comparison, direction) %>%
+    summarise(symbols=paste(symbol, collapse="/"))
+  return(ids)}
+signal_to_noise = function(res) {
+  res = res %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("ensembl_gene_id") %>%
+    left_join(entrez, by="ensembl_gene_id") %>%
+    filter(!is.na(entrezgene)) %>%
+    filter(!is.na(log2FoldChange)) %>%
+    filter(!is.na(lfcSE))
+  fccol = ifelse("lfcMLE" %in% colnames(res), "lfcMLE", "log2FoldChange")
+  lfc = data.frame
+  lfcse = data.frame(res)[, "lfcSE"]
+  genes = lfc/lfcse
+  names(genes) = res$entrezgene
+  genes = genes[order(genes, decreasing=TRUE)]
+  return(genes)
+}
+convert_gsea_ids = function(res, entrezsymbol) {
+ res %>%
+  mutate(geneID=strsplit(as.character(core_enrichment), "/")) %>%
+    tidyr::unnest(geneID) %>%
+    left_join(entrezsymbol, by=c("geneID"="entrezgene")) %>%
+  group_by(ID, Description, setSize, enrichmentScore, NES, pvalue, p.adjust,
+           qvalues, rank, leading_edge, core_enrichment, ont, comparison) %>%
+  summarise(geneID=paste(geneID, collapse="/"),
+            symbol=paste(mgi_symbol, collapse="/"))
+ }
+
+gender = data.frame(gender)
+rownames(gender) = gender$ensgene
+gender_gsea = gsea_cp(gender, "gender-effect")
+gender_gsea_res = convert_gsea_ids(gender_gsea$summary, entrezsymbol)
+dir.create("results/gsea")
+readr::write_csv(gender_gsea_res, "results/gsea/gender-gsea-results.csv")
+```
+
+# File downloads
+
+The results are saved as gzip-compressed comma separated values (CSV). Gzip compression is natively supported on [macOS][] and Linux-based operating systems. If you're running Windows, we recommend installing [7-Zip][]. CSV files can be opened in [Excel][] or [RStudio][].
+
+
+## Count matrices
+
+- [`tpm.csv.gz`](results/tpm.csv.gz):
+    Transcripts per million, scaled by effective transcript length and library size,
+    suitable for plotting.
+- [`counts.csv.gz`](results/counts.csv.gz):
+    Only use to perform a new differential expression analysis. These counts
+    will vary across samples due to differences in sequencing depth, and have
+    not been normalized. Do not use this file for plotting genes.
+
+## Differentially expressed genes (DEG)
+
+- [res_gender_female_vs_male_all_genes.csv.gz](results/de/res_gender_female_vs_male_all_genes.csv.gz): differential expression results for all genes
+- [res_gender_female_vs_male_deg.csv.gz](results/de/res_gender_female_vs_male_deg.csv.gz): all genes with at least a 2-fold change and a FDR of 0.05
+- [res_gender_female_vs_male_deg_lfc_down.csv.gz](results/de/res_gender_female_vs_male_deg_lfc_down.csv.gz): just genes that are downregulated 2-fold and have a FDR of 0.05
+- [res_gender_female_vs_male_deg_lfc_up.csv.gz](results/de/res_gender_female_vs_male_deg_lfc_up.csv.gz): just genes that are upregulated 2-fold and have a FDR of 0.05
+
+For all tables, a positive log2FoldChange is higher in the female samples than
+the male samples.
+
+DEG tables are sorted by BH-adjusted P value, and contain the following columns:
+
+- `ensembl_gene_id`: [Ensembl][] gene identifier.
+- `base_mean`: Mean of the normalized counts per gene for all samples.
+- `log2_fold_change`: log2 fold change.
+- `lfc_se`: log2 standard error.
+- `stat`: Wald statistic.
+- `pvalue`: Walt test *P* value.
+- `padj`: BH adjusted Wald test *P* value (corrected for multiple comparisons; FDR).
+- `external_gene_name`: [Ensembl][] name (a.k.a. symbol).
+- `description`: [Ensembl][] description.
+- `gene_biotype`: [Ensembl][] biotype (e.g. `protein_coding`).
+
+## GSEA
+- [gender-gsea-results.csv](results/gsea/gender-gsea-results.csv): GSEA results for the gender differences.
+
+
+```{r res_tbl}
+res_tbl <- res_tables(bcb, res = res, lfc = lfc, dir=res_out)
+save_data(res_tbl, dir=data_out)
+```
+
+```{r footer, child="footer.Rmd"}
+```
